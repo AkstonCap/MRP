@@ -20,6 +20,8 @@ import {
   updateInput,
 } from 'actions/actionCreators';
 
+import MRPInterface from '../components/MRPInterface';
+
 const DemoTextField = styled(TextField)({
   maxWidth: 400,
 });
@@ -50,6 +52,8 @@ export default function Main() {
     dispatch(updateInput(e.target.value));
   };
   const [checkingMetrics, setCheckingMetrics] = useState(false);
+  const [showDemo, setShowDemo] = useState(false);
+  
   const viewMetrics = async () => {
     try {
       setCheckingMetrics(true);
@@ -68,8 +72,18 @@ export default function Main() {
     }
   };
 
+  if (!showDemo) {
+    return <MRPInterface />;
+  }
+
   return (
     <Panel title="React Redux Module" icon={{ url: 'react.svg', id: 'icon' }}>
+      <div className="text-center mb2">
+        <Button onClick={() => setShowDemo(!showDemo)}>
+          {showDemo ? 'Show MRP Interface' : 'Show Demo Content'}
+        </Button>
+      </div>
+      
       <div className="text-center">
         Check out{' '}
         <Button

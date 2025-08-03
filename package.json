@@ -1,7 +1,7 @@
 {
-  "name": "react_redux_module_template",
-  "version": "0.4.0",
-  "description": "A Nexus Wallet Module template built with React and Redux, also includes boilerplate code and example usages of some Nexus Wallet Module's advanced features",
+  "name": "mrp_module",
+  "version": "0.1.0",
+  "description": "A Nexus Wallet MRP Module",
   "devDependencies": {
     "@babel/core": "^7.18.9",
     "@babel/plugin-proposal-optional-chaining": "^7.18.9",
@@ -25,7 +25,7 @@
     "dev": "cross-env NODE_ENV=development webpack serve --config webpack-dev.config.babel.js"
   },
   "dependencies": {
-    "nexus-module": "^1.0.0-alpha.9",
+    "nexus-module": "^1.0.0-alpha.13",
     "react-redux": "^8.0.2",
     "redux": "^4.2.0"
   }
