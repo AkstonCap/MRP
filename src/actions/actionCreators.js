@@ -13,7 +13,28 @@ export const updateInput = (inputValue) => ({
   payload: inputValue,
 });
 
-// MRP Action Creators
+// On-Chain Asset Action Creators (Primary Reference)
+export const setChainAssets = (assets) => ({
+  type: TYPE.SET_CHAIN_ASSETS,
+  payload: assets,
+});
+
+export const addChainAsset = (asset) => ({
+  type: TYPE.ADD_CHAIN_ASSET,
+  payload: asset,
+});
+
+export const updateChainAsset = (assetAddress, updates) => ({
+  type: TYPE.UPDATE_CHAIN_ASSET,
+  payload: { assetAddress, updates },
+});
+
+export const syncAssetsFromChain = (assets) => ({
+  type: TYPE.SYNC_ASSETS_FROM_CHAIN,
+  payload: assets,
+});
+
+// Legacy Material Action Creators (for backward compatibility)
 export const addMaterial = (material) => ({
   type: TYPE.ADD_MATERIAL,
   payload: material,
@@ -34,6 +55,7 @@ export const setMaterials = (materials) => ({
   payload: materials,
 });
 
+// Inventory Action Creators (now references chain assets)
 export const addInventoryTransaction = (transaction) => ({
   type: TYPE.ADD_INVENTORY_TRANSACTION,
   payload: transaction,
@@ -44,14 +66,15 @@ export const setInventory = (inventory) => ({
   payload: inventory,
 });
 
-export const addBomItem = (parentMaterialId, bomItem) => ({
+// BOM Action Creators (now references chain assets)
+export const addBomItem = (parentAssetAddress, bomItem) => ({
   type: TYPE.ADD_BOM_ITEM,
-  payload: { parentMaterialId, bomItem },
+  payload: { parentAssetAddress, bomItem },
 });
 
-export const removeBomItem = (parentMaterialId, bomItemId) => ({
+export const removeBomItem = (parentAssetAddress, bomItemId) => ({
   type: TYPE.REMOVE_BOM_ITEM,
-  payload: { parentMaterialId, bomItemId },
+  payload: { parentAssetAddress, bomItemId },
 });
 
 export const setBom = (bom) => ({

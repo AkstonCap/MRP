@@ -84,14 +84,15 @@ export default function OnChainAssets() {
       
       // Query assets using the register/list/assets:asset API
       // This will get all assets, then we'll filter by distordia status
-      const response = await apiCall('register/list/assets:asset', {
+      const response = await apiCall('register/list/assets:asset/category,distordia,description,url,comment', {
         // You can add additional filters here if needed
-        limit: 100, // Limit results to prevent overwhelming the interface
+        //limit: 100, // Limit results to prevent overwhelming the interface
+        //where: `results.distordia=1`//${parseFloat(statusFilter)}`
       });
 
-      if (response && response.result) {
+      if (response) {
         // Filter assets that have distordia attribute
-        const materialAssets = response.result
+        const materialAssets = response
           .map(asset => parseMaterialAsset(asset))
           .filter(asset => {
             // Only include assets with valid distordia status
@@ -118,11 +119,11 @@ export default function OnChainAssets() {
         setAssets([]);
       }
     } catch (error) {
-      console.error('Error querying assets:', error);
-      showErrorDialog({
+      //console.error('Error querying assets:', error);
+      /*showErrorDialog({
         message: 'Failed to query blockchain assets',
         note: error?.message || 'Unknown error occurred'
-      });
+      });*/
       setAssets([]);
     } finally {
       setLoading(false);

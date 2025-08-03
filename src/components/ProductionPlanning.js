@@ -8,6 +8,7 @@ import {
   showErrorDialog,
 } from 'nexus-module';
 
+import { getAllMaterials, getMaterialFromReference, getMaterialDisplayName } from '../utils/materialReferenceManager';
 import { Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell } from './StyledTable';
 
 const PlanningContainer = styled.div({
@@ -23,9 +24,13 @@ const RequirementCard = styled.div(({ theme }) => ({
 }));
 
 export default function ProductionPlanning() {
-  const materials = useSelector(state => state.mrp.materials);
+  const localMaterials = useSelector(state => state.mrp.materials);
+  const chainAssets = useSelector(state => state.mrp.chainAssets || []);
   const inventory = useSelector(state => state.mrp.inventory);
   const bom = useSelector(state => state.mrp.bom);
+  
+  // Get all materials (chain assets first, then local materials)
+  const materials = getAllMaterials(chainAssets, localMaterials);
   
   const [planningForm, setPlanningForm] = useState({
     materialId: '',
@@ -40,27 +45,31 @@ export default function ProductionPlanning() {
       return;
     }
 
-    const parentMaterial = materials.find(m => m.id === planningForm.materialId);
+    const parentMaterial = getMaterialFromReference(planningForm.materialId, chainAssets, localMaterials);
     if (!parentMaterial) return;
 
     const plannedQty = parseFloat(planningForm.plannedQuantity);
     const requirements = [];
 
     // Calculate direct material requirements
-    const bomItems = bom[planningForm.materialId] || [];
+    const materialKey = parentMaterial.address || parentMaterial.id;
+    const bomItems = bom[materialKey] || [];
     
     bomItems.forEach(bomItem => {
-      const childMaterial = materials.find(m => m.id === bomItem.childMaterialId);
+      const childReference = bomItem.childAssetAddress || bomItem.childMaterialId;
+      const childMaterial = getMaterialFromReference(childReference, chainAssets, localMaterials);
       if (!childMaterial) return;
 
       const requiredQty = bomItem.quantity * plannedQty;
-      const currentInventory = inventory[bomItem.childMaterialId];
+      const childKey = childMaterial.address || childMaterial.id;
+      const currentInventory = inventory[childKey];
       const available = currentInventory ? currentInventory.available : 0;
       const shortfall = Math.max(0, requiredQty - available);
 
       requirements.push({
-        materialId: bomItem.childMaterialId,
+        materialId: childKey,
         materialName: childMaterial.name,
+        materialDisplayName: getMaterialDisplayName(childMaterial),
         unit: childMaterial.unit,
         requiredQuantity: requiredQty,
         availableQuantity: available,
@@ -75,24 +84,27 @@ export default function ProductionPlanning() {
       const nestedBom = bom[req.materialId] || [];
       if (nestedBom.length > 0) {
         nestedBom.forEach(nestedItem => {
-          const nestedMaterial = materials.find(m => m.id === nestedItem.childMaterialId);
+          const nestedReference = nestedItem.childAssetAddress || nestedItem.childMaterialId;
+          const nestedMaterial = getMaterialFromReference(nestedReference, chainAssets, localMaterials);
           if (!nestedMaterial) return;
 
           const nestedRequiredQty = nestedItem.quantity * req.requiredQuantity;
-          const nestedInventory = inventory[nestedItem.childMaterialId];
+          const nestedKey = nestedMaterial.address || nestedMaterial.id;
+          const nestedInventory = inventory[nestedKey];
           const nestedAvailable = nestedInventory ? nestedInventory.available : 0;
           const nestedShortfall = Math.max(0, nestedRequiredQty - nestedAvailable);
 
           // Check if this material is already in requirements
-          const existingIndex = requirements.findIndex(r => r.materialId === nestedItem.childMaterialId);
+          const existingIndex = requirements.findIndex(r => r.materialId === nestedKey);
           if (existingIndex >= 0) {
             requirements[existingIndex].requiredQuantity += nestedRequiredQty;
             requirements[existingIndex].shortfall = Math.max(0, requirements[existingIndex].requiredQuantity - requirements[existingIndex].availableQuantity);
             requirements[existingIndex].totalCost = requirements[existingIndex].requiredQuantity * requirements[existingIndex].cost;
           } else {
             requirements.push({
-              materialId: nestedItem.childMaterialId,
+              materialId: nestedKey,
               materialName: nestedMaterial.name,
+              materialDisplayName: getMaterialDisplayName(nestedMaterial),
               unit: nestedMaterial.unit,
               requiredQuantity: nestedRequiredQty,
               availableQuantity: nestedAvailable,
@@ -107,9 +119,10 @@ export default function ProductionPlanning() {
     });
 
     setMaterialRequirements(requirements);
+    const parentDisplayName = getMaterialDisplayName(parentMaterial);
     showSuccessDialog({ 
       message: 'Material requirements calculated',
-      note: `Requirements calculated for ${plannedQty} units of ${parentMaterial.name}`
+      note: `Requirements calculated for ${plannedQty} units of ${parentDisplayName}`
     });
   };
 
@@ -144,11 +157,17 @@ export default function ProductionPlanning() {
           style={{ padding: '8px' }}
         >
           <option value="">Select Product to Produce</option>
-          {materials.filter(m => bom[m.id] && bom[m.id].length > 0).map(material => (
-            <option key={material.id} value={material.id}>
-              {material.name}
-            </option>
-          ))}
+          {materials.filter(material => {
+            const materialKey = material.address || material.id;
+            return bom[materialKey] && bom[materialKey].length > 0;
+          }).map(material => {
+            const materialKey = material.address || material.id;
+            return (
+              <option key={materialKey} value={materialKey}>
+                {getMaterialDisplayName(material)}
+              </option>
+            );
+          })}
         </select>
 
         <TextField
@@ -203,7 +222,7 @@ export default function ProductionPlanning() {
               {materialRequirements.map((req, index) => (
                 <TableRow key={index}>
                   <TableCell>
-                    {req.nested && '↳ '}{req.materialName}
+                    {req.nested && '↳ '}{req.materialDisplayName || req.materialName}
                   </TableCell>
                   <TableCell>{req.requiredQuantity.toFixed(2)} {req.unit}</TableCell>
                   <TableCell>{req.availableQuantity.toFixed(2)} {req.unit}</TableCell>
@@ -232,7 +251,7 @@ export default function ProductionPlanning() {
                     .filter(req => req.shortfall > 0)
                     .map((req, index) => (
                       <li key={index}>
-                        <strong>{req.materialName}</strong>: Purchase {req.shortfall.toFixed(2)} {req.unit} 
+                        <strong>{req.materialDisplayName || req.materialName}</strong>: Purchase {req.shortfall.toFixed(2)} {req.unit} 
                         (estimated cost: ${(req.shortfall * req.cost).toFixed(2)})
                       </li>
                     ))}

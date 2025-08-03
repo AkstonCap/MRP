@@ -21,9 +21,12 @@ import {
   setMaterials,
   setInventory,
   setBom,
+  setChainAssets,
+  addChainAsset,
 } from 'actions/actionCreators';
 
 import { sampleMaterials, sampleInventory, sampleBOM } from '../utils/sampleData';
+import { getAllMaterials, getMaterialFromReference, getMaterialDisplayName } from '../utils/materialReferenceManager';
 import BlockchainFeatures from './BlockchainFeatures';
 import ProductionPlanning from './ProductionPlanning';
 import OnChainAssets from './OnChainAssets';
@@ -75,9 +78,13 @@ const StatCard = styled.div(({ theme }) => ({
 export default function MRPInterface() {
   const dispatch = useDispatch();
   const activeTab = useSelector(state => state.mrp.activeTab);
-  const materials = useSelector(state => state.mrp.materials);
+  const localMaterials = useSelector(state => state.mrp.materials);
+  const chainAssets = useSelector(state => state.mrp.chainAssets || []);
   const inventory = useSelector(state => state.mrp.inventory);
   const bom = useSelector(state => state.mrp.bom);
+
+  // Get all materials (chain assets first, then local materials)
+  const materials = getAllMaterials(chainAssets, localMaterials);
 
   // Form states
   const [materialForm, setMaterialForm] = useState({
@@ -142,9 +149,13 @@ export default function MRPInterface() {
       return;
     }
 
+    const materialReference = inventoryForm.materialId;
+    const material = getMaterialFromReference(materialReference, chainAssets, localMaterials);
+
     const transaction = {
       id: Date.now().toString(),
-      materialId: inventoryForm.materialId,
+      materialId: materialReference,
+      assetAddress: material?.address || null,
       quantity: inventoryForm.type === 'issue' 
         ? -Math.abs(parseFloat(inventoryForm.quantity))
         : Math.abs(parseFloat(inventoryForm.quantity)),
@@ -154,7 +165,8 @@ export default function MRPInterface() {
     };
 
     dispatch(addInventoryTransaction({ 
-      materialId: inventoryForm.materialId, 
+      materialId: materialReference,
+      assetAddress: material?.address || null,
       transaction 
     }));
     setInventoryForm({ materialId: '', quantity: '', type: 'receipt', reference: '' });
@@ -167,32 +179,42 @@ export default function MRPInterface() {
       return;
     }
 
+    const parentMaterial = getMaterialFromReference(bomForm.parentMaterialId, chainAssets, localMaterials);
+    const childMaterial = getMaterialFromReference(bomForm.childMaterialId, chainAssets, localMaterials);
+
     const bomItem = {
       id: Date.now().toString(),
       childMaterialId: bomForm.childMaterialId,
+      childAssetAddress: childMaterial?.address || null,
       quantity: parseFloat(bomForm.quantity),
     };
 
-    dispatch(addBomItem(bomForm.parentMaterialId, bomItem));
+    dispatch(addBomItem({
+      parentMaterialId: bomForm.parentMaterialId,
+      parentAssetAddress: parentMaterial?.address || null,
+      bomItem
+    }));
     setBomForm({ parentMaterialId: '', childMaterialId: '', quantity: '' });
     showSuccessDialog({ message: 'BOM item added successfully' });
   };
 
-  const getMaterialName = (materialId) => {
-    const material = materials.find(m => m.id === materialId);
-    return material ? material.name : 'Unknown Material';
+  const getMaterialName = (materialReference) => {
+    const material = getMaterialFromReference(materialReference, chainAssets, localMaterials);
+    return material ? getMaterialDisplayName(material) : 'Unknown Material';
   };
 
   const getTotalMaterials = () => materials.length;
   const getTotalInventoryValue = () => {
     return materials.reduce((total, material) => {
-      const inv = inventory[material.id];
+      const materialKey = material.address || material.id;
+      const inv = inventory[materialKey];
       return total + (inv ? inv.onHand * material.cost : 0);
     }, 0);
   };
   const getLowStockItems = () => {
     return materials.filter(material => {
-      const inv = inventory[material.id];
+      const materialKey = material.address || material.id;
+      const inv = inventory[materialKey];
       return inv && inv.onHand < 10; // Arbitrary low stock threshold
     }).length;
   };
@@ -326,10 +348,18 @@ export default function MRPInterface() {
             </TableHeader>
             <TableBody>
               {materials.map(material => {
-                const inv = inventory[material.id];
+                const materialKey = material.address || material.id;
+                const inv = inventory[materialKey];
                 return (
-                  <TableRow key={material.id}>
-                    <TableCell>{material.name}</TableCell>
+                  <TableRow key={materialKey}>
+                    <TableCell>
+                      {getMaterialDisplayName(material)}
+                      {material.distordiaStatus && (
+                        <div style={{ fontSize: '12px', opacity: 0.7 }}>
+                          {material.statusLabel}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>{material.description}</TableCell>
                     <TableCell>{material.unit}</TableCell>
                     <TableCell>${material.cost.toFixed(2)}</TableCell>
@@ -339,7 +369,7 @@ export default function MRPInterface() {
                       <Button 
                         size="small" 
                         skin="danger"
-                        onClick={() => handleDeleteMaterial(material.id)}
+                        onClick={() => handleDeleteMaterial(material.address || material.id)}
                       >
                         Delete
                       </Button>
@@ -362,11 +392,14 @@ export default function MRPInterface() {
               style={{ padding: '8px' }}
             >
               <option value="">Select Material</option>
-              {materials.map(material => (
-                <option key={material.id} value={material.id}>
-                  {material.name}
-                </option>
-              ))}
+              {materials.map(material => {
+                const materialKey = material.address || material.id;
+                return (
+                  <option key={materialKey} value={materialKey}>
+                    {getMaterialDisplayName(material)}
+                  </option>
+                );
+              })}
             </select>
             <TextField
               label="Quantity"
@@ -406,15 +439,16 @@ export default function MRPInterface() {
             </TableHeader>
             <TableBody>
               {materials.map(material => {
-                const inv = inventory[material.id];
+                const materialKey = material.address || material.id;
+                const inv = inventory[materialKey];
                 const onHand = inv ? inv.onHand : 0;
                 const reserved = inv ? inv.reserved : 0;
                 const available = inv ? inv.available : 0;
                 const value = onHand * material.cost;
                 
                 return (
-                  <TableRow key={material.id}>
-                    <TableCell>{material.name}</TableCell>
+                  <TableRow key={materialKey}>
+                    <TableCell>{getMaterialDisplayName(material)}</TableCell>
                     <TableCell>{onHand} {material.unit}</TableCell>
                     <TableCell>{reserved} {material.unit}</TableCell>
                     <TableCell>{available} {material.unit}</TableCell>
@@ -437,11 +471,14 @@ export default function MRPInterface() {
               style={{ padding: '8px' }}
             >
               <option value="">Select Parent Material</option>
-              {materials.filter(m => m.type !== 'raw').map(material => (
-                <option key={material.id} value={material.id}>
-                  {material.name}
-                </option>
-              ))}
+              {materials.filter(m => m.type !== 'raw').map(material => {
+                const materialKey = material.address || material.id;
+                return (
+                  <option key={materialKey} value={materialKey}>
+                    {getMaterialDisplayName(material)}
+                  </option>
+                );
+              })}
             </select>
             <select 
               value={bomForm.childMaterialId}
@@ -449,11 +486,14 @@ export default function MRPInterface() {
               style={{ padding: '8px' }}
             >
               <option value="">Select Component</option>
-              {materials.map(material => (
-                <option key={material.id} value={material.id}>
-                  {material.name}
-                </option>
-              ))}
+              {materials.map(material => {
+                const materialKey = material.address || material.id;
+                return (
+                  <option key={materialKey} value={materialKey}>
+                    {getMaterialDisplayName(material)}
+                  </option>
+                );
+              })}
             </select>
             <TextField
               label="Quantity Required"
@@ -466,37 +506,43 @@ export default function MRPInterface() {
           </FormContainer>
 
           <h3>Bill of Materials</h3>
-          {materials.filter(m => bom[m.id] && bom[m.id].length > 0).map(material => (
-            <div key={material.id} style={{ marginBottom: '20px' }}>
-              <h4>{material.name} - Components:</h4>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHeaderCell>Component</TableHeaderCell>
-                    <TableHeaderCell>Quantity Required</TableHeaderCell>
-                    <TableHeaderCell>Actions</TableHeaderCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(bom[material.id] || []).map(bomItem => (
-                    <TableRow key={bomItem.id}>
-                      <TableCell>{getMaterialName(bomItem.childMaterialId)}</TableCell>
-                      <TableCell>{bomItem.quantity}</TableCell>
-                      <TableCell>
-                        <Button 
-                          size="small" 
-                          skin="danger"
-                          onClick={() => dispatch(removeBomItem(material.id, bomItem.id))}
-                        >
-                          Remove
-                        </Button>
-                      </TableCell>
+          {materials.filter(material => {
+            const materialKey = material.address || material.id;
+            return bom[materialKey] && bom[materialKey].length > 0;
+          }).map(material => {
+            const materialKey = material.address || material.id;
+            return (
+              <div key={materialKey} style={{ marginBottom: '20px' }}>
+                <h4>{getMaterialDisplayName(material)} - Components:</h4>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHeaderCell>Component</TableHeaderCell>
+                      <TableHeaderCell>Quantity Required</TableHeaderCell>
+                      <TableHeaderCell>Actions</TableHeaderCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ))}
+                  </TableHeader>
+                  <TableBody>
+                    {(bom[materialKey] || []).map(bomItem => (
+                      <TableRow key={bomItem.id}>
+                        <TableCell>{getMaterialName(bomItem.childMaterialId || bomItem.childAssetAddress)}</TableCell>
+                        <TableCell>{bomItem.quantity}</TableCell>
+                        <TableCell>
+                          <Button 
+                            size="small" 
+                            skin="danger"
+                            onClick={() => dispatch(removeBomItem(materialKey, bomItem.id))}
+                          >
+                            Remove
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            );
+          })}
         </div>
       )}
 

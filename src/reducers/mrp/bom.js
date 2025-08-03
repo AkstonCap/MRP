@@ -8,21 +8,24 @@ export default function bom(state = initialState, action) {
       return action.payload;
 
     case TYPE.ADD_BOM_ITEM:
-      const { parentMaterialId, bomItem } = action.payload;
-      const currentBom = state[parentMaterialId] || [];
+      const { parentAssetAddress, parentMaterialId, bomItem } = action.payload;
+      // Support both new asset address format and legacy material ID
+      const bomKey = parentAssetAddress || parentMaterialId;
+      const currentBom = state[bomKey] || [];
       
       return {
         ...state,
-        [parentMaterialId]: [...currentBom, bomItem],
+        [bomKey]: [...currentBom, bomItem],
       };
 
     case TYPE.REMOVE_BOM_ITEM:
-      const { parentMaterialId: parentId, bomItemId } = action.payload;
-      const existingBom = state[parentId] || [];
+      const { parentAssetAddress: parentAddr, parentMaterialId: parentId, bomItemId } = action.payload;
+      const existingBomKey = parentAddr || parentId;
+      const existingBom = state[existingBomKey] || [];
       
       return {
         ...state,
-        [parentId]: existingBom.filter(item => item.id !== bomItemId),
+        [existingBomKey]: existingBom.filter(item => item.id !== bomItemId),
       };
 
     default:
