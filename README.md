@@ -23,17 +23,20 @@ This is a Nexus Wallet Module for Material Resource Planning (MRP) purposes buil
 - Cost rollup calculations for manufactured goods
 
 ### 🔗 Blockchain Integration
-- **Material Master Registry**: Publish material specifications as immutable blockchain assets
-- **B2B Data Sharing**: Share standardized material data with business partners
+- **Material Master Registry**: Publish material specifications as immutable blockchain assets with standardized "distordia" status identifiers
+- **Distordia Status System**: Standardized lifecycle management (1=Active, 2=Sold Out, 3=Planned, 4=Discontinued, 5=Pending Approval)
+- **On-Chain Asset Querying**: Query and filter blockchain assets by distordia status using register/list/assets:asset API
+- **B2B Data Sharing**: Share standardized material data with business partners using blockchain as common reference
 - **Supply Chain Transparency**: Track material movements and certifications on-chain
-- **Decentralized Procurement**: Enable direct peer-to-peer material sourcing
+- **Decentralized Procurement**: Enable direct peer-to-peer material sourcing through blockchain marketplace
 
 ### 💼 Business Benefits
-- Reduce procurement costs through standardized material data
-- Improve supply chain transparency and compliance
-- Enable direct B2B transactions without intermediaries
-- Create immutable audit trails for quality assurance
-- Facilitate collaborative supply chain management
+- Reduce procurement costs through standardized material data with blockchain-based lifecycle management
+- Improve supply chain transparency and compliance using distordia status tracking
+- Enable direct B2B transactions without intermediaries through standardized asset identifiers
+- Create immutable audit trails for quality assurance and regulatory compliance
+- Facilitate collaborative supply chain management with shared material master data standards
+- Filter and manage materials efficiently using the distordia status system (Active/Sold Out/Planned/etc.)
 
 
 ### How to test this module

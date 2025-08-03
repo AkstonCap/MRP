@@ -26,6 +26,7 @@ import {
 import { sampleMaterials, sampleInventory, sampleBOM } from '../utils/sampleData';
 import BlockchainFeatures from './BlockchainFeatures';
 import ProductionPlanning from './ProductionPlanning';
+import OnChainAssets from './OnChainAssets';
 import { Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell } from './StyledTable';
 
 const TabContainer = styled.div({
@@ -204,7 +205,7 @@ export default function MRPInterface() {
   };
 
   return (
-    <Panel title="MRP - Material Resource Planning" icon={{ url: 'react.svg', id: 'icon' }}>
+    <Panel title="MRP - Material Resource Planning" icon={{ url: 'dist/icons/inventory.svg', id: 'mrp-icon' }}>
       <div style={{ textAlign: 'center', marginBottom: '20px' }}>
         <p style={{ marginBottom: '10px' }}>
           This MRP module demonstrates material master data management, inventory tracking, 
@@ -254,6 +255,12 @@ export default function MRPInterface() {
           onClick={() => handleTabChange('planning')}
         >
           Production Planning
+        </TabButton>
+        <TabButton 
+          active={activeTab === 'assets'} 
+          onClick={() => handleTabChange('assets')}
+        >
+          On-Chain Assets
         </TabButton>
         <TabButton 
           active={activeTab === 'blockchain'} 
@@ -494,6 +501,8 @@ export default function MRPInterface() {
       )}
 
       {activeTab === 'planning' && <ProductionPlanning />}
+
+      {activeTab === 'assets' && <OnChainAssets />}
 
       {activeTab === 'blockchain' && <BlockchainFeatures />}
     </Panel>

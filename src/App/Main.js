@@ -77,10 +77,10 @@ export default function Main() {
   }
 
   return (
-    <Panel title="React Redux Module" icon={{ url: 'react.svg', id: 'icon' }}>
+    <Panel title="MRP - Material Resource Planning" icon={{ url: 'dist/icons/inventory.svg', id: 'mrp-icon' }}>
       <div className="text-center mb2">
         <Button onClick={() => setShowDemo(!showDemo)}>
-          {showDemo ? 'Show MRP Interface' : 'Show Demo Content'}
+          {showDemo ? 'Show Demo Content' : 'Show MRP Interface'}
         </Button>
       </div>
       
