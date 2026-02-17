@@ -9,6 +9,6 @@
   "icon": "dist/icons/inventory.svg",
   "files": ["dist/index.html", "dist/icons/inventory.svg", "dist/js/app.js"],
   "author": {
-    "name": "Chad Akston"
+    "name": "AkstonCap"
   }
 }
