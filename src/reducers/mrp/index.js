@@ -4,6 +4,9 @@ import materials from './materials';
 import inventory from './inventory';
 import bom from './bom';
 import activeTab from './activeTab';
+import componentLibrary from './componentLibrary';
+import pallets from './pallets';
+import invoices from './invoices';
 
 export default combineReducers({
   chainAssets,
@@ -11,4 +14,7 @@ export default combineReducers({
   inventory,
   bom,
   activeTab,
+  componentLibrary,
+  pallets,
+  invoices,
 });

@@ -10,10 +10,9 @@ import {
   showErrorDialog,
 } from 'nexus-module';
 
-import { 
+import {
   setActiveTab,
-  addMaterial, 
-  updateMaterial, 
+  addMaterial,
   deleteMaterial,
   addInventoryTransaction,
   addBomItem,
@@ -21,26 +20,29 @@ import {
   setMaterials,
   setInventory,
   setBom,
-  setChainAssets,
-  addChainAsset,
 } from 'actions/actionCreators';
 
 import { sampleMaterials, sampleInventory, sampleBOM } from '../utils/sampleData';
 import { getAllMaterials, getMaterialFromReference, getMaterialDisplayName } from '../utils/materialReferenceManager';
-import BlockchainFeatures from './BlockchainFeatures';
 import ProductionPlanning from './ProductionPlanning';
 import OnChainAssets from './OnChainAssets';
+import ComponentSearch from './ComponentSearch';
+import WarehouseInventory from './WarehouseInventory';
+import PickingBOM from './PickingBOM';
+import Invoicing from './Invoicing';
 import { Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell } from './StyledTable';
 
 const TabContainer = styled.div({
   display: 'flex',
+  flexWrap: 'wrap',
   borderBottom: '1px solid #ccc',
   marginBottom: '20px',
 });
 
 const TabButton = styled.button(({ active, theme }) => ({
-  padding: '10px 20px',
+  padding: '8px 14px',
   border: 'none',
+  fontSize: '13px',
   backgroundColor: active ? theme.primary : 'transparent',
   color: active ? theme.primaryAccent : theme.foreground,
   cursor: 'pointer',
@@ -82,6 +84,8 @@ export default function MRPInterface() {
   const chainAssets = useSelector(state => state.mrp.chainAssets || []);
   const inventory = useSelector(state => state.mrp.inventory);
   const bom = useSelector(state => state.mrp.bom);
+  const pallets = useSelector(state => state.mrp.pallets || []);
+  const invoices = useSelector(state => state.mrp.invoices || []);
 
   // Get all materials (chain assets first, then local materials)
   const materials = getAllMaterials(chainAssets, localMaterials);
@@ -230,8 +234,9 @@ export default function MRPInterface() {
     <Panel title="MRP - Material Resource Planning" icon={{ url: 'dist/icons/inventory.svg', id: 'mrp-icon' }}>
       <div style={{ textAlign: 'center', marginBottom: '20px' }}>
         <p style={{ marginBottom: '10px' }}>
-          This MRP module demonstrates material master data management, inventory tracking, 
-          and bill of materials for small businesses using blockchain technology.
+          Small business MRP system. Search Distordia Standards for components, manage
+          warehouse pallets, build BOMs, generate picking lists, and issue invoices — all
+          with on-chain asset tracking.
         </p>
         <Button onClick={loadSampleData}>Load Sample Data</Button>
       </div>
@@ -239,7 +244,7 @@ export default function MRPInterface() {
       <StatsContainer>
         <StatCard>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{getTotalMaterials()}</div>
-          <div>Total Materials</div>
+          <div>Materials</div>
         </StatCard>
         <StatCard>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
@@ -248,47 +253,46 @@ export default function MRPInterface() {
           <div>Inventory Value</div>
         </StatCard>
         <StatCard>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{pallets.length}</div>
+          <div>Pallets</div>
+        </StatCard>
+        <StatCard>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{invoices.length}</div>
+          <div>Invoices</div>
+        </StatCard>
+        <StatCard>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{getLowStockItems()}</div>
-          <div>Low Stock Items</div>
+          <div>Low Stock</div>
         </StatCard>
       </StatsContainer>
 
       <TabContainer>
-        <TabButton 
-          active={activeTab === 'materials'} 
-          onClick={() => handleTabChange('materials')}
-        >
-          Materials Master
+        <TabButton active={activeTab === 'search'} onClick={() => handleTabChange('search')}>
+          Component Search
         </TabButton>
-        <TabButton 
-          active={activeTab === 'inventory'} 
-          onClick={() => handleTabChange('inventory')}
-        >
+        <TabButton active={activeTab === 'materials'} onClick={() => handleTabChange('materials')}>
+          Materials
+        </TabButton>
+        <TabButton active={activeTab === 'warehouse'} onClick={() => handleTabChange('warehouse')}>
+          Warehouse
+        </TabButton>
+        <TabButton active={activeTab === 'inventory'} onClick={() => handleTabChange('inventory')}>
           Inventory
         </TabButton>
-        <TabButton 
-          active={activeTab === 'bom'} 
-          onClick={() => handleTabChange('bom')}
-        >
-          Bill of Materials
+        <TabButton active={activeTab === 'bom'} onClick={() => handleTabChange('bom')}>
+          BOM
         </TabButton>
-        <TabButton 
-          active={activeTab === 'planning'} 
-          onClick={() => handleTabChange('planning')}
-        >
-          Production Planning
+        <TabButton active={activeTab === 'picking'} onClick={() => handleTabChange('picking')}>
+          Picking
         </TabButton>
-        <TabButton 
-          active={activeTab === 'assets'} 
-          onClick={() => handleTabChange('assets')}
-        >
-          On-Chain Assets
+        <TabButton active={activeTab === 'invoicing'} onClick={() => handleTabChange('invoicing')}>
+          Invoicing
         </TabButton>
-        <TabButton 
-          active={activeTab === 'blockchain'} 
-          onClick={() => handleTabChange('blockchain')}
-        >
-          Blockchain Features
+        <TabButton active={activeTab === 'planning'} onClick={() => handleTabChange('planning')}>
+          Planning
+        </TabButton>
+        <TabButton active={activeTab === 'assets'} onClick={() => handleTabChange('assets')}>
+          On-Chain
         </TabButton>
       </TabContainer>
 
@@ -546,11 +550,17 @@ export default function MRPInterface() {
         </div>
       )}
 
+      {activeTab === 'search' && <ComponentSearch />}
+
+      {activeTab === 'warehouse' && <WarehouseInventory />}
+
+      {activeTab === 'picking' && <PickingBOM />}
+
+      {activeTab === 'invoicing' && <Invoicing />}
+
       {activeTab === 'planning' && <ProductionPlanning />}
 
       {activeTab === 'assets' && <OnChainAssets />}
-
-      {activeTab === 'blockchain' && <BlockchainFeatures />}
     </Panel>
   );
 }
