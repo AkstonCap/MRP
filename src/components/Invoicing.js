@@ -67,9 +67,9 @@ export default function Invoicing() {
   const invoices = useSelector((state) => state.mrp.invoices || []);
   const localMaterials = useSelector((state) => state.mrp.materials);
   const chainAssets = useSelector((state) => state.mrp.chainAssets || []);
-  const inventory = useSelector((state) => state.mrp.inventory);
+  const componentLibrary = useSelector((state) => state.mrp.componentLibrary || []);
 
-  const materials = getAllMaterials(chainAssets, localMaterials);
+  const materials = getAllMaterials(chainAssets, localMaterials, componentLibrary);
 
   const [customer, setCustomer] = useState('');
   const [notes, setNotes] = useState('');

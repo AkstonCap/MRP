@@ -1,121 +1,145 @@
-import { parseMaterialAsset } from './materialAssetTemplate';
+import { DISTORDIA_STATUS_LABELS } from './materialAssetTemplate';
 
 /**
- * Utility functions for managing the transition from local materials to chain assets
- * as the global reference point for the MRP system
+ * Material Reference Manager — Distordia Masterdata as Layer 0
+ *
+ * The Distordia masterdata on the Nexus blockchain is the single source of
+ * truth for component/material information.  The internal component library
+ * stores ONLY the Distordia asset address (the reference number).  All
+ * material details (name, unit, cost, type …) are resolved at query time
+ * from the cached chain assets — zero data duplication.
+ *
+ * Resolution order:
+ *   1. Chain asset by address  (authoritative — Distordia masterdata)
+ *   2. Local material by ID    (offline / legacy fallback)
  */
 
-// Get material data from chain assets or fallback to local materials
+// ─── Resolve a single chain asset address into a material object ─────────────
+
+const resolveChainAsset = (address, chainAssets) => {
+  const asset = chainAssets.find((a) => a.address === address);
+  if (!asset || !asset.parsedData) return null;
+  const d = asset.parsedData;
+  return {
+    id: asset.address,
+    address: asset.address,
+    name: d.materialName,
+    description: d.description,
+    unit: d.unit,
+    cost: d.baseCost || 0,
+    type: d.materialType,
+    source: 'chain',
+    distordiaStatus: d.distordia,
+    statusLabel: DISTORDIA_STATUS_LABELS[d.distordia] || asset.statusLabel,
+    createdAt: d.publishedAt,
+  };
+};
+
+// ─── Public helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Resolve a material reference (address or local ID) to a material object.
+ * Chain assets are checked first (authoritative), then local materials.
+ */
 export const getMaterialFromReference = (reference, chainAssets, localMaterials) => {
-  // First try to find by asset address
-  if (reference && reference.startsWith && (reference.startsWith('0x') || reference.length > 20)) {
-    const chainAsset = chainAssets.find(asset => asset.address === reference);
-    if (chainAsset && chainAsset.parsedData) {
-      return {
-        id: chainAsset.address,
-        address: chainAsset.address,
-        name: chainAsset.parsedData.materialName,
-        description: chainAsset.parsedData.description,
-        unit: chainAsset.parsedData.unit,
-        cost: chainAsset.parsedData.baseCost || 0,
-        type: chainAsset.parsedData.materialType,
-        source: 'chain',
-        distordiaStatus: chainAsset.parsedData.distordia,
-        statusLabel: chainAsset.statusLabel,
-        createdAt: chainAsset.parsedData.publishedAt,
-      };
-    }
+  if (reference) {
+    const resolved = resolveChainAsset(reference, chainAssets);
+    if (resolved) return resolved;
   }
-  
-  // Fallback to local material by ID
-  const localMaterial = localMaterials.find(m => m.id === reference);
+
+  const localMaterial = localMaterials.find((m) => m.id === reference);
   if (localMaterial) {
-    return {
-      ...localMaterial,
-      source: 'local',
-    };
+    return { ...localMaterial, source: 'local' };
   }
-  
+
   return null;
 };
 
-// Get all materials (chain assets first, then local materials not on chain)
-export const getAllMaterials = (chainAssets, localMaterials) => {
+/**
+ * Resolve the component library (address-only entries) into full material
+ * objects by querying the cached chain assets.
+ */
+export const resolveLibrary = (componentLibrary, chainAssets) => {
+  return componentLibrary
+    .map((entry) => resolveChainAsset(entry.address, chainAssets))
+    .filter(Boolean);
+};
+
+/**
+ * Get the combined list of materials available to the MRP system.
+ *
+ * When a componentLibrary is provided its addresses are resolved first
+ * (these are the Distordia masterdata components the business has chosen
+ * to use).  Local-only materials are appended for offline / legacy support.
+ */
+export const getAllMaterials = (chainAssets, localMaterials, componentLibrary) => {
   const materials = [];
-  
-  // Add all chain assets first
-  chainAssets.forEach(asset => {
-    if (asset.parsedData && asset.parsedData.assetType === 'material_master_data') {
-      materials.push({
-        id: asset.address,
-        address: asset.address,
-        name: asset.parsedData.materialName,
-        description: asset.parsedData.description,
-        unit: asset.parsedData.unit,
-        cost: asset.parsedData.baseCost || 0,
-        type: asset.parsedData.materialType,
-        source: 'chain',
-        distordiaStatus: asset.parsedData.distordia,
-        statusLabel: asset.statusLabel,
-        createdAt: asset.parsedData.publishedAt,
-      });
+  const seenAddresses = new Set();
+
+  if (componentLibrary && componentLibrary.length > 0) {
+    // Primary path — resolve library addresses from chain
+    componentLibrary.forEach((entry) => {
+      const resolved = resolveChainAsset(entry.address, chainAssets);
+      if (resolved) {
+        materials.push(resolved);
+        seenAddresses.add(resolved.address);
+      }
+    });
+  } else {
+    // Fallback — include every chain asset of type material_master_data
+    chainAssets.forEach((asset) => {
+      if (asset.parsedData && asset.parsedData.assetType === 'material_master_data') {
+        const resolved = resolveChainAsset(asset.address, chainAssets);
+        if (resolved) {
+          materials.push(resolved);
+          seenAddresses.add(resolved.address);
+        }
+      }
+    });
+  }
+
+  // Append local-only materials that aren't already covered
+  const chainNames = materials.map((m) => m.name && m.name.toLowerCase());
+  localMaterials.forEach((material) => {
+    if (
+      !seenAddresses.has(material.id) &&
+      !chainNames.includes(material.name && material.name.toLowerCase())
+    ) {
+      materials.push({ ...material, source: 'local' });
     }
   });
-  
-  // Add local materials that aren't already on chain
-  const chainMaterialNames = materials.map(m => m.name.toLowerCase());
-  localMaterials.forEach(material => {
-    if (!chainMaterialNames.includes(material.name.toLowerCase())) {
-      materials.push({
-        ...material,
-        source: 'local',
-      });
-    }
-  });
-  
+
   return materials;
 };
 
-// Get inventory key (prefer asset address over material ID)
-export const getInventoryKey = (material) => {
-  return material.address || material.id;
-};
-
-// Get BOM key (prefer asset address over material ID)
-export const getBomKey = (material) => {
-  return material.address || material.id;
-};
+// Get inventory / BOM key — always prefer asset address
+export const getInventoryKey = (material) => material.address || material.id;
+export const getBomKey = (material) => material.address || material.id;
 
 // Check if material is on chain
-export const isMaterialOnChain = (material) => {
-  return material.source === 'chain' && material.address;
-};
+export const isMaterialOnChain = (material) =>
+  material.source === 'chain' && !!material.address;
 
 // Get material display name with source indicator
 export const getMaterialDisplayName = (material) => {
   if (!material) return 'Unknown Material';
-  
   const sourceIcon = material.source === 'chain' ? '🔗' : '📝';
   return `${sourceIcon} ${material.name}`;
 };
 
 // Convert local material to chain asset for publishing
-export const prepareLocalMaterialForChain = (localMaterial) => {
-  return {
-    ...localMaterial,
-    // Add any additional fields needed for chain publishing
-    qualityGrade: localMaterial.qualityGrade || 'Standard',
-    certifications: localMaterial.certifications || [],
-    specifications: localMaterial.specifications || {},
-  };
-};
+export const prepareLocalMaterialForChain = (localMaterial) => ({
+  ...localMaterial,
+  qualityGrade: localMaterial.qualityGrade || 'Standard',
+  certifications: localMaterial.certifications || [],
+  specifications: localMaterial.specifications || {},
+});
 
-// Update inventory and BOM references when material moves to chain
+// Migrate inventory/BOM refs when a local material is published to chain
 export const updateReferencesToChainAsset = (localMaterialId, chainAssetAddress, inventory, bom) => {
   const updatedInventory = { ...inventory };
   const updatedBom = { ...bom };
-  
-  // Update inventory reference
+
   if (updatedInventory[localMaterialId]) {
     updatedInventory[chainAssetAddress] = {
       ...updatedInventory[localMaterialId],
@@ -123,21 +147,21 @@ export const updateReferencesToChainAsset = (localMaterialId, chainAssetAddress,
     };
     delete updatedInventory[localMaterialId];
   }
-  
-  // Update BOM references
+
   if (updatedBom[localMaterialId]) {
     updatedBom[chainAssetAddress] = updatedBom[localMaterialId];
     delete updatedBom[localMaterialId];
   }
-  
-  // Update BOM items that reference this material
-  Object.keys(updatedBom).forEach(bomKey => {
-    updatedBom[bomKey] = updatedBom[bomKey].map(bomItem => ({
+
+  Object.keys(updatedBom).forEach((bomKey) => {
+    updatedBom[bomKey] = updatedBom[bomKey].map((bomItem) => ({
       ...bomItem,
-      childMaterialId: bomItem.childMaterialId === localMaterialId ? chainAssetAddress : bomItem.childMaterialId,
-      childAssetAddress: bomItem.childMaterialId === localMaterialId ? chainAssetAddress : bomItem.childAssetAddress,
+      childMaterialId:
+        bomItem.childMaterialId === localMaterialId ? chainAssetAddress : bomItem.childMaterialId,
+      childAssetAddress:
+        bomItem.childMaterialId === localMaterialId ? chainAssetAddress : bomItem.childAssetAddress,
     }));
   });
-  
+
   return { updatedInventory, updatedBom };
 };

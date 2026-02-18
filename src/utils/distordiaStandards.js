@@ -1,15 +1,25 @@
 /**
- * Distordia_Standards - Standard Asset Format Definitions
+ * Distordia_Standards — Standard Asset Format Definitions
  *
- * Defines standardized on-chain asset formats for the MRP system.
+ * Distordia masterdata is the **Layer 0** foundation of the supply chain.
+ * Every material/component is defined once on the Nexus blockchain as a
+ * `material_master_data` asset with a unique address (the "art.nr").
+ *
+ * The MRP system never duplicates masterdata.  Internal processes
+ * (warehouse, BOM, picking, invoicing) reference components solely by
+ * their Distordia asset address.  All descriptive data (name, unit,
+ * cost, type …) is resolved at query time from the chain.
+ *
+ * Standard asset formats defined here can be imported into any system
+ * that follows the Distordia_Standards specification.
+ *
  * All assets use the `distordia` field (1-5) for lifecycle status
- * and `assetType` to distinguish between asset kinds.
+ * and `assetType` to distinguish between asset kinds:
  *
- * Asset Types:
- *   material_master_data - Component/material catalog entries
- *   warehouse_pallet     - Physical pallet inventory tracking
- *   sales_invoice        - Invoice issued on a sale
- *   picking_list         - BOM-based picking list for production/shipping
+ *   material_master_data  — Component/material catalog entries (Layer 0)
+ *   warehouse_pallet      — Physical pallet inventory tracking
+ *   sales_invoice         — Invoice issued on a sale
+ *   picking_list          — BOM-based picking list for production/shipping
  */
 
 import { DISTORDIA_STATUS } from './materialAssetTemplate';

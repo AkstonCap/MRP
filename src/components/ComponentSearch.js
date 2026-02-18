@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styled from '@emotion/styled';
 import {
@@ -9,10 +9,11 @@ import {
   apiCall,
 } from 'nexus-module';
 
-import { addToLibrary, removeFromLibrary, addMaterial } from 'actions/actionCreators';
+import { addToLibrary, removeFromLibrary } from 'actions/actionCreators';
 import { Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell } from './StyledTable';
 import { DISTORDIA_STATUS, DISTORDIA_STATUS_LABELS, parseMaterialAsset } from '../utils/materialAssetTemplate';
 import { ASSET_TYPES } from '../utils/distordiaStandards';
+import { resolveLibrary } from '../utils/materialReferenceManager';
 
 const SearchContainer = styled.div({
   marginTop: '10px',
@@ -56,11 +57,17 @@ const SectionTitle = styled.h3({
   paddingBottom: '5px',
 });
 
+const AddressCell = styled.span({
+  fontFamily: 'monospace',
+  fontSize: '11px',
+  opacity: 0.7,
+});
+
 export default function ComponentSearch() {
   const dispatch = useDispatch();
   const userStatus = useSelector((state) => state.nexus.userStatus);
   const componentLibrary = useSelector((state) => state.mrp.componentLibrary || []);
-  const localMaterials = useSelector((state) => state.mrp.materials);
+  const chainAssets = useSelector((state) => state.mrp.chainAssets || []);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -68,14 +75,12 @@ export default function ComponentSearch() {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Check if a component is already in the library
-  const isInLibrary = (asset) => {
-    return componentLibrary.some(
-      (c) => c.address === asset.address || c.id === asset.address
-    );
-  };
+  // Check if an asset address is already in the library
+  const isInLibrary = (asset) =>
+    componentLibrary.some((c) => c.address === asset.address);
 
-  // Search on-chain Distordia_Standards assets
+  // ─── Search Distordia masterdata on-chain ──────────────────────────────────
+
   const handleSearch = async () => {
     if (!userStatus) {
       showErrorDialog({ message: 'Please log in to Nexus Wallet to search on-chain components' });
@@ -94,15 +99,15 @@ export default function ComponentSearch() {
           .map((asset) => parseMaterialAsset(asset))
           .filter((asset) => {
             if (!asset.parsedData) return false;
-            // Only material master data
-            if (asset.parsedData.assetType !== ASSET_TYPES.MATERIAL &&
-                asset.parsedData.assetType !== 'material_master_data') return false;
-            // Must have distordia status
+            if (
+              asset.parsedData.assetType !== ASSET_TYPES.MATERIAL &&
+              asset.parsedData.assetType !== 'material_master_data'
+            )
+              return false;
             if (!asset.parsedData.distordia) return false;
             return true;
           });
 
-        // Apply text search filter
         if (searchTerm.trim()) {
           const term = searchTerm.toLowerCase();
           results = results.filter((asset) => {
@@ -115,14 +120,12 @@ export default function ComponentSearch() {
           });
         }
 
-        // Apply type filter
         if (typeFilter) {
           results = results.filter(
             (asset) => asset.parsedData.materialType === typeFilter
           );
         }
 
-        // Apply status filter
         if (statusFilter) {
           results = results.filter(
             (asset) => asset.distordiaStatus === parseInt(statusFilter)
@@ -140,54 +143,33 @@ export default function ComponentSearch() {
     }
   };
 
-  // Add a found component to the internal library
+  // ─── Add to library — store ONLY the address ──────────────────────────────
+
   const handleAddToLibrary = (asset) => {
-    const d = asset.parsedData;
-    const component = {
-      id: asset.address || `chain_${Date.now()}`,
-      address: asset.address,
-      name: d.materialName,
-      description: d.description || '',
-      unit: d.unit || 'pcs',
-      cost: d.baseCost || 0,
-      type: d.materialType || 'raw',
-      source: 'chain',
-      distordiaStatus: d.distordia,
-      statusLabel: DISTORDIA_STATUS_LABELS[d.distordia] || 'Unknown',
-      qualityGrade: d.qualityGrade || 'Standard',
-      certifications: d.certifications || [],
-      specifications: d.specifications || {},
-      addedAt: new Date().toISOString(),
-    };
-
-    dispatch(addToLibrary(component));
-
-    // Also add as a local material so it's available in inventory/BOM
-    dispatch(
-      addMaterial({
-        id: component.id,
-        name: component.name,
-        description: component.description,
-        unit: component.unit,
-        cost: component.cost,
-        type: component.type,
-        createdAt: component.addedAt,
-      })
-    );
-
-    showSuccessDialog({ message: `"${component.name}" added to your component library` });
+    dispatch(addToLibrary({ address: asset.address }));
+    const name = asset.parsedData?.materialName || asset.address;
+    showSuccessDialog({ message: `"${name}" added to your component library (ref: ${asset.address})` });
   };
 
-  const handleRemoveFromLibrary = (componentId) => {
-    dispatch(removeFromLibrary(componentId));
+  const handleRemoveFromLibrary = (address) => {
+    dispatch(removeFromLibrary(address));
   };
+
+  // ─── Resolve library entries from chain for display ────────────────────────
+
+  const resolvedLibrary = resolveLibrary(componentLibrary, chainAssets);
+
+  // Truncate address for display
+  const truncAddr = (addr) =>
+    addr ? `${addr.substring(0, 8)}…${addr.substring(addr.length - 6)}` : '—';
 
   return (
     <SearchContainer>
       <h3>Search Distordia Standards Components</h3>
       <p>
-        Search the on-chain Distordia masterdata for components and add them to
-        your internal library for use in inventory, BOMs, and production.
+        Search the on-chain Distordia masterdata for components.  Adding a
+        component stores only its <strong>asset address</strong> as reference —
+        all details are resolved live from the chain (no data duplication).
       </p>
 
       <SearchBar>
@@ -231,6 +213,7 @@ export default function ComponentSearch() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHeaderCell>Asset Address</TableHeaderCell>
                 <TableHeaderCell>Name</TableHeaderCell>
                 <TableHeaderCell>Description</TableHeaderCell>
                 <TableHeaderCell>Type</TableHeaderCell>
@@ -246,6 +229,9 @@ export default function ComponentSearch() {
                 const inLib = isInLibrary(asset);
                 return (
                   <TableRow key={asset.address || idx}>
+                    <TableCell>
+                      <AddressCell>{truncAddr(asset.address)}</AddressCell>
+                    </TableCell>
                     <TableCell>
                       {d.materialName || 'N/A'}
                       {inLib && <LibraryBadge>In Library</LibraryBadge>}
@@ -273,10 +259,7 @@ export default function ComponentSearch() {
                       {inLib ? (
                         <span style={{ color: '#155724', fontSize: '13px' }}>Added</span>
                       ) : (
-                        <Button
-                          size="small"
-                          onClick={() => handleAddToLibrary(asset)}
-                        >
+                        <Button size="small" onClick={() => handleAddToLibrary(asset)}>
                           + Add
                         </Button>
                       )}
@@ -305,39 +288,42 @@ export default function ComponentSearch() {
         </div>
       )}
 
-      {/* Internal Component Library */}
+      {/* ─── Internal Component Library (address-only references) ──────────── */}
       <SectionTitle>Your Component Library ({componentLibrary.length})</SectionTitle>
-      {componentLibrary.length > 0 ? (
+      <p style={{ fontSize: '13px', color: '#666', marginBottom: '10px' }}>
+        Each entry is a reference to a Distordia masterdata asset address.
+        Details below are resolved live from the Nexus blockchain.
+      </p>
+
+      {resolvedLibrary.length > 0 ? (
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHeaderCell>Asset Address (Ref)</TableHeaderCell>
               <TableHeaderCell>Name</TableHeaderCell>
-              <TableHeaderCell>Description</TableHeaderCell>
               <TableHeaderCell>Type</TableHeaderCell>
               <TableHeaderCell>Unit</TableHeaderCell>
               <TableHeaderCell>Cost</TableHeaderCell>
-              <TableHeaderCell>Added</TableHeaderCell>
+              <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell>Actions</TableHeaderCell>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {componentLibrary.map((comp) => (
-              <TableRow key={comp.id || comp.address}>
+            {resolvedLibrary.map((comp) => (
+              <TableRow key={comp.address}>
+                <TableCell>
+                  <AddressCell>{truncAddr(comp.address)}</AddressCell>
+                </TableCell>
                 <TableCell>{comp.name}</TableCell>
-                <TableCell>{comp.description || '-'}</TableCell>
                 <TableCell>{comp.type}</TableCell>
                 <TableCell>{comp.unit}</TableCell>
                 <TableCell>${Number(comp.cost || 0).toFixed(2)}</TableCell>
-                <TableCell style={{ fontSize: '12px' }}>
-                  {comp.addedAt
-                    ? new Date(comp.addedAt).toLocaleDateString()
-                    : '-'}
-                </TableCell>
+                <TableCell>{comp.statusLabel || '-'}</TableCell>
                 <TableCell>
                   <Button
                     size="small"
                     skin="danger"
-                    onClick={() => handleRemoveFromLibrary(comp.id || comp.address)}
+                    onClick={() => handleRemoveFromLibrary(comp.address)}
                   >
                     Remove
                   </Button>
@@ -346,6 +332,11 @@ export default function ComponentSearch() {
             ))}
           </TableBody>
         </Table>
+      ) : componentLibrary.length > 0 ? (
+        <p style={{ color: '#c88', fontSize: '14px' }}>
+          {componentLibrary.length} address(es) in library but chain data not
+          yet cached. Query on-chain assets or search above to refresh.
+        </p>
       ) : (
         <p style={{ color: '#888', fontSize: '14px' }}>
           No components in library yet. Search above and add components to get

@@ -17,7 +17,7 @@ import {
   addInventoryTransaction,
 } from 'actions/actionCreators';
 import { Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell } from './StyledTable';
-import { getAllMaterials, getMaterialDisplayName } from '../utils/materialReferenceManager';
+import { getAllMaterials, getMaterialFromReference, getMaterialDisplayName } from '../utils/materialReferenceManager';
 import {
   PALLET_STATUS,
   PALLET_STATUS_LABELS,
@@ -73,9 +73,20 @@ export default function WarehouseInventory() {
   const pallets = useSelector((state) => state.mrp.pallets || []);
   const localMaterials = useSelector((state) => state.mrp.materials);
   const chainAssets = useSelector((state) => state.mrp.chainAssets || []);
-  const inventory = useSelector((state) => state.mrp.inventory);
+  const componentLibrary = useSelector((state) => state.mrp.componentLibrary || []);
 
-  const materials = getAllMaterials(chainAssets, localMaterials);
+  const materials = getAllMaterials(chainAssets, localMaterials, componentLibrary);
+
+  // Resolve a materialId (address) into its display name from chain
+  const resolveName = (materialId) => {
+    const mat = getMaterialFromReference(materialId, chainAssets, localMaterials);
+    return mat ? getMaterialDisplayName(mat) : materialId;
+  };
+
+  const resolveUnit = (materialId) => {
+    const mat = getMaterialFromReference(materialId, chainAssets, localMaterials);
+    return mat ? mat.unit : '';
+  };
 
   const [palletForm, setPalletForm] = useState({
     materialId: '',
@@ -86,13 +97,13 @@ export default function WarehouseInventory() {
 
   const [updateForm, setUpdateForm] = useState({
     palletId: '',
-    action: 'adjust', // adjust | move | status
+    action: 'adjust',
     quantity: '',
     location: '',
     status: '',
   });
 
-  // ─── Create Pallet ──────────────────────────────────────────────────────────
+  // ─── Create Pallet — stores only materialId (asset address) ─────────────
 
   const handleCreatePallet = () => {
     if (!palletForm.materialId || !palletForm.quantity || !palletForm.location) {
@@ -113,9 +124,7 @@ export default function WarehouseInventory() {
 
     const pallet = {
       id: palletId,
-      materialId: palletForm.materialId,
-      materialName: material.name,
-      unit: material.unit,
+      materialId: palletForm.materialId, // Distordia asset address — the only reference
       quantity: qty,
       location: palletForm.location,
       status: PALLET_STATUS.AVAILABLE,
@@ -126,7 +135,6 @@ export default function WarehouseInventory() {
 
     dispatch(addPallet(pallet));
 
-    // Also record as inventory receipt
     dispatch(
       addInventoryTransaction({
         materialId: palletForm.materialId,
@@ -169,7 +177,6 @@ export default function WarehouseInventory() {
       updates.quantity = newQty;
       if (newQty === 0) updates.status = PALLET_STATUS.EMPTY;
 
-      // Record inventory transaction
       dispatch(
         addInventoryTransaction({
           materialId: pallet.materialId,
@@ -206,7 +213,14 @@ export default function WarehouseInventory() {
       return;
     }
     try {
-      const template = createPalletAssetTemplate(pallet);
+      // Resolve name/unit from chain for the on-chain snapshot
+      const mat = getMaterialFromReference(pallet.materialId, chainAssets, localMaterials);
+      const enrichedPallet = {
+        ...pallet,
+        materialName: mat ? mat.name : pallet.materialId,
+        unit: mat ? mat.unit : '',
+      };
+      const template = createPalletAssetTemplate(enrichedPallet);
       await apiCall('register/create/asset', template);
       showSuccessDialog({ message: `Pallet ${pallet.id} published on-chain` });
     } catch (error) {
@@ -238,8 +252,8 @@ export default function WarehouseInventory() {
     <div>
       <h3>Warehouse Pallet Inventory</h3>
       <p>
-        Track physical pallet inventory in your warehouse. Each pallet is an
-        individually trackable unit that can be published on-chain.
+        Track physical pallet inventory. Each pallet references a Distordia
+        masterdata asset address — material details are resolved from the chain.
       </p>
 
       <StatsRow>
@@ -314,7 +328,7 @@ export default function WarehouseInventory() {
               <option value="">Select Pallet</option>
               {pallets.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.id} - {p.materialName} ({p.quantity} {p.unit})
+                  {p.id} - {resolveName(p.materialId)} ({p.quantity} {resolveUnit(p.materialId)})
                 </option>
               ))}
             </select>
@@ -372,7 +386,7 @@ export default function WarehouseInventory() {
           <TableHeader>
             <TableRow>
               <TableHeaderCell>Pallet ID</TableHeaderCell>
-              <TableHeaderCell>Material</TableHeaderCell>
+              <TableHeaderCell>Material (from chain)</TableHeaderCell>
               <TableHeaderCell>Qty</TableHeaderCell>
               <TableHeaderCell>Location</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
@@ -386,9 +400,9 @@ export default function WarehouseInventory() {
                 <TableCell style={{ fontFamily: 'monospace', fontSize: '13px' }}>
                   {p.id}
                 </TableCell>
-                <TableCell>{p.materialName}</TableCell>
+                <TableCell>{resolveName(p.materialId)}</TableCell>
                 <TableCell>
-                  {p.quantity} {p.unit}
+                  {p.quantity} {resolveUnit(p.materialId)}
                 </TableCell>
                 <TableCell>{p.location}</TableCell>
                 <TableCell>

@@ -1,5 +1,15 @@
 import * as TYPE from 'actions/types';
 
+/**
+ * Component Library reducer.
+ *
+ * Each entry stores ONLY the Distordia masterdata asset address and a
+ * timestamp.  All component details are resolved at query time from the
+ * chain — no data duplication.
+ *
+ * Entry shape: { address: string, addedAt: string }
+ */
+
 const initialState = [];
 
 export default function componentLibrary(state = initialState, action) {
@@ -8,20 +18,18 @@ export default function componentLibrary(state = initialState, action) {
       return action.payload;
 
     case TYPE.ADD_TO_LIBRARY: {
-      // Prevent duplicates by materialId or address
-      const exists = state.some(
-        (c) =>
-          c.id === action.payload.id ||
-          (action.payload.address && c.address === action.payload.address)
-      );
+      const addr = action.payload.address;
+      if (!addr) return state;
+      const exists = state.some((c) => c.address === addr);
       if (exists) return state;
-      return [...state, action.payload];
+      return [
+        ...state,
+        { address: addr, addedAt: action.payload.addedAt || new Date().toISOString() },
+      ];
     }
 
     case TYPE.REMOVE_FROM_LIBRARY:
-      return state.filter(
-        (c) => c.id !== action.payload && c.address !== action.payload
-      );
+      return state.filter((c) => c.address !== action.payload);
 
     default:
       return state;

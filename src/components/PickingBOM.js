@@ -37,11 +37,11 @@ export default function PickingBOM() {
   const userStatus = useSelector((state) => state.nexus.userStatus);
   const localMaterials = useSelector((state) => state.mrp.materials);
   const chainAssets = useSelector((state) => state.mrp.chainAssets || []);
+  const componentLibrary = useSelector((state) => state.mrp.componentLibrary || []);
   const bom = useSelector((state) => state.mrp.bom);
   const pallets = useSelector((state) => state.mrp.pallets || []);
-  const inventory = useSelector((state) => state.mrp.inventory);
 
-  const materials = getAllMaterials(chainAssets, localMaterials);
+  const materials = getAllMaterials(chainAssets, localMaterials, componentLibrary);
 
   const [productId, setProductId] = useState('');
   const [orderQty, setOrderQty] = useState('');

@@ -82,13 +82,14 @@ export default function MRPInterface() {
   const activeTab = useSelector(state => state.mrp.activeTab);
   const localMaterials = useSelector(state => state.mrp.materials);
   const chainAssets = useSelector(state => state.mrp.chainAssets || []);
+  const componentLibrary = useSelector(state => state.mrp.componentLibrary || []);
   const inventory = useSelector(state => state.mrp.inventory);
   const bom = useSelector(state => state.mrp.bom);
   const pallets = useSelector(state => state.mrp.pallets || []);
   const invoices = useSelector(state => state.mrp.invoices || []);
 
-  // Get all materials (chain assets first, then local materials)
-  const materials = getAllMaterials(chainAssets, localMaterials);
+  // Resolve materials — library addresses resolved from chain, plus local fallback
+  const materials = getAllMaterials(chainAssets, localMaterials, componentLibrary);
 
   // Form states
   const [materialForm, setMaterialForm] = useState({

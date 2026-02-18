@@ -26,11 +26,12 @@ const RequirementCard = styled.div(({ theme }) => ({
 export default function ProductionPlanning() {
   const localMaterials = useSelector(state => state.mrp.materials);
   const chainAssets = useSelector(state => state.mrp.chainAssets || []);
+  const componentLibrary = useSelector(state => state.mrp.componentLibrary || []);
   const inventory = useSelector(state => state.mrp.inventory);
   const bom = useSelector(state => state.mrp.bom);
-  
-  // Get all materials (chain assets first, then local materials)
-  const materials = getAllMaterials(chainAssets, localMaterials);
+
+  // Resolve materials — library addresses from chain, plus local fallback
+  const materials = getAllMaterials(chainAssets, localMaterials, componentLibrary);
   
   const [planningForm, setPlanningForm] = useState({
     materialId: '',
