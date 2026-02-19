@@ -34,28 +34,7 @@ export const syncAssetsFromChain = (assets) => ({
   payload: assets,
 });
 
-// Legacy Material Action Creators (for backward compatibility)
-export const addMaterial = (material) => ({
-  type: TYPE.ADD_MATERIAL,
-  payload: material,
-});
-
-export const updateMaterial = (materialId, updates) => ({
-  type: TYPE.UPDATE_MATERIAL,
-  payload: { materialId, updates },
-});
-
-export const deleteMaterial = (materialId) => ({
-  type: TYPE.DELETE_MATERIAL,
-  payload: materialId,
-});
-
-export const setMaterials = (materials) => ({
-  type: TYPE.SET_MATERIALS,
-  payload: materials,
-});
-
-// Inventory Action Creators (now references chain assets)
+// Inventory Action Creators (references chain assets by address)
 export const addInventoryTransaction = (transaction) => ({
   type: TYPE.ADD_INVENTORY_TRANSACTION,
   payload: transaction,

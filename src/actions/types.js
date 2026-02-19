@@ -9,12 +9,6 @@ export const ADD_CHAIN_ASSET = 'ADD_CHAIN_ASSET';
 export const UPDATE_CHAIN_ASSET = 'UPDATE_CHAIN_ASSET';
 export const SYNC_ASSETS_FROM_CHAIN = 'SYNC_ASSETS_FROM_CHAIN';
 
-// Local Material Actions (Deprecated - will reference chain assets)
-export const ADD_MATERIAL = 'ADD_MATERIAL';
-export const UPDATE_MATERIAL = 'UPDATE_MATERIAL';
-export const DELETE_MATERIAL = 'DELETE_MATERIAL';
-export const SET_MATERIALS = 'SET_MATERIALS';
-
 // Inventory Actions (Reference chain assets by address)
 export const ADD_INVENTORY_TRANSACTION = 'ADD_INVENTORY_TRANSACTION';
 export const SET_INVENTORY = 'SET_INVENTORY';
