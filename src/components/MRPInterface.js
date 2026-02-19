@@ -18,7 +18,6 @@ import {
 
 import { getAllMaterials, getMaterialFromReference, getMaterialDisplayName } from '../utils/materialReferenceManager';
 import ProductionPlanning from './ProductionPlanning';
-import OnChainAssets from './OnChainAssets';
 import ComponentSearch from './ComponentSearch';
 import WarehouseInventory from './WarehouseInventory';
 import PickingBOM from './PickingBOM';
@@ -234,9 +233,6 @@ export default function MRPInterface() {
         <TabButton active={activeTab === 'planning'} onClick={() => handleTabChange('planning')}>
           Planning
         </TabButton>
-        <TabButton active={activeTab === 'assets'} onClick={() => handleTabChange('assets')}>
-          On-Chain
-        </TabButton>
       </TabContainer>
 
       {activeTab === 'inventory' && (
@@ -412,8 +408,6 @@ export default function MRPInterface() {
       {activeTab === 'invoicing' && <Invoicing />}
 
       {activeTab === 'planning' && <ProductionPlanning />}
-
-      {activeTab === 'assets' && <OnChainAssets />}
     </Panel>
   );
 }

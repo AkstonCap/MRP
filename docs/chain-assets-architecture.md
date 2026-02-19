@@ -121,3 +121,7 @@ All asset types include a `distordia` field (1–5) for lifecycle status and an 
 4. **Interoperable** — any system following Distordia_Standards can read the same assets
 5. **Auditable** — every transaction traces back to a chain address
 6. **Offline fallback** — local materials still work when disconnected
+
+## Related Documentation
+
+- `docs/state-machines.md` — finite state machines for pallet, invoice, picking, and app navigation.

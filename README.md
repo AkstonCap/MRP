@@ -152,6 +152,11 @@ A BOM-based picking list for production or shipping.
 
 ## How to test this module
 
+Additional architecture docs:
+
+- `docs/chain-assets-architecture.md`
+- `docs/state-machines.md`
+
 1. Download and install the [latest version of Nexus Wallet](https://github.com/Nexusoft/NexusInterface/releases/latest) if you haven't.
 2. Download [this template module's zip file](https://github.com/AkstonCap/MRP/releases/latest).
 3. Open Nexus Wallet, go to Settings/Modules, drag and drop the zip file you've downloaded into the "Add module" section and click "Install module" when prompted.
