@@ -34,28 +34,7 @@ export const syncAssetsFromChain = (assets) => ({
   payload: assets,
 });
 
-// Legacy Material Action Creators (for backward compatibility)
-export const addMaterial = (material) => ({
-  type: TYPE.ADD_MATERIAL,
-  payload: material,
-});
-
-export const updateMaterial = (materialId, updates) => ({
-  type: TYPE.UPDATE_MATERIAL,
-  payload: { materialId, updates },
-});
-
-export const deleteMaterial = (materialId) => ({
-  type: TYPE.DELETE_MATERIAL,
-  payload: materialId,
-});
-
-export const setMaterials = (materials) => ({
-  type: TYPE.SET_MATERIALS,
-  payload: materials,
-});
-
-// Inventory Action Creators (now references chain assets)
+// Inventory Action Creators (references chain assets by address)
 export const addInventoryTransaction = (transaction) => ({
   type: TYPE.ADD_INVENTORY_TRANSACTION,
   payload: transaction,
@@ -80,6 +59,59 @@ export const removeBomItem = (parentAssetAddress, bomItemId) => ({
 export const setBom = (bom) => ({
   type: TYPE.SET_BOM,
   payload: bom,
+});
+
+// Component Library Action Creators
+export const addToLibrary = (component) => ({
+  type: TYPE.ADD_TO_LIBRARY,
+  payload: component,
+});
+
+export const removeFromLibrary = (componentId) => ({
+  type: TYPE.REMOVE_FROM_LIBRARY,
+  payload: componentId,
+});
+
+export const setLibrary = (library) => ({
+  type: TYPE.SET_LIBRARY,
+  payload: library,
+});
+
+// Warehouse Pallet Action Creators
+export const addPallet = (pallet) => ({
+  type: TYPE.ADD_PALLET,
+  payload: pallet,
+});
+
+export const updatePallet = (palletId, updates) => ({
+  type: TYPE.UPDATE_PALLET,
+  payload: { palletId, updates },
+});
+
+export const removePallet = (palletId) => ({
+  type: TYPE.REMOVE_PALLET,
+  payload: palletId,
+});
+
+export const setPallets = (pallets) => ({
+  type: TYPE.SET_PALLETS,
+  payload: pallets,
+});
+
+// Invoice Action Creators
+export const addInvoice = (invoice) => ({
+  type: TYPE.ADD_INVOICE,
+  payload: invoice,
+});
+
+export const updateInvoice = (invoiceId, updates) => ({
+  type: TYPE.UPDATE_INVOICE,
+  payload: { invoiceId, updates },
+});
+
+export const setInvoices = (invoices) => ({
+  type: TYPE.SET_INVOICES,
+  payload: invoices,
 });
 
 export const setActiveTab = (tabName) => ({
