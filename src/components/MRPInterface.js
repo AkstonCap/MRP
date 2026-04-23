@@ -1,28 +1,42 @@
-import { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import styled from '@emotion/styled';
-import {
-  Panel,
-  TextField,
-  Button,
-  showSuccessDialog,
-  showErrorDialog,
-} from 'nexus-module';
+import { Panel } from 'nexus-module';
 
-import {
-  setActiveTab,
-  addInventoryTransaction,
-  addBomItem,
-  removeBomItem,
-} from 'actions/actionCreators';
+import { setActiveTab } from 'actions/actionCreators';
 
-import { getAllMaterials, getMaterialFromReference, getMaterialDisplayName } from '../utils/materialReferenceManager';
-import ProductionPlanning from './ProductionPlanning';
+import { getAllMaterials } from '../utils/materialReferenceManager';
 import ComponentSearch from './ComponentSearch';
+import Vendors from './Vendors';
+import Purchasing from './Purchasing';
+import Stock from './Stock';
+import Checkout from './Checkout';
+import IncomeReport from './IncomeReport';
 import WarehouseInventory from './WarehouseInventory';
 import PickingBOM from './PickingBOM';
 import Invoicing from './Invoicing';
-import { Table, TableHeader, TableBody, TableRow, TableHeaderCell, TableCell } from './StyledTable';
+import ProductionPlanning from './ProductionPlanning';
+
+// Store mode — tabs we show in the UI.  The hidden modules remain in the
+// build (BOM / Warehouse / Picking / Invoicing / Planning) so they can be
+// re-enabled by flipping the flag below.
+const SHOW_LEGACY_MANUFACTURING = false;
+
+const STORE_TABS = [
+  { key: 'products', label: 'Products' },
+  { key: 'vendors', label: 'Vendors' },
+  { key: 'purchasing', label: 'Purchasing' },
+  { key: 'stock', label: 'Stock' },
+  { key: 'checkout', label: 'Check-out' },
+  { key: 'income', label: 'Income' },
+];
+
+const LEGACY_TABS = [
+  { key: 'warehouse', label: 'Warehouse' },
+  { key: 'bom', label: 'BOM' },
+  { key: 'picking', label: 'Picking' },
+  { key: 'invoicing', label: 'Invoicing' },
+  { key: 'planning', label: 'Planning' },
+];
 
 const TabContainer = styled.div({
   display: 'flex',
@@ -44,16 +58,6 @@ const TabButton = styled.button(({ active, theme }) => ({
   },
 }));
 
-const FormContainer = styled.div({
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-  gap: '15px',
-  marginBottom: '20px',
-  padding: '15px',
-  border: '1px solid #ccc',
-  borderRadius: '5px',
-});
-
 const StatsContainer = styled.div({
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -69,345 +73,128 @@ const StatCard = styled.div(({ theme }) => ({
   backgroundColor: theme.mixer(0.0625),
 }));
 
+const DEFAULT_TAB = 'products';
+
 export default function MRPInterface() {
   const dispatch = useDispatch();
-  const activeTab = useSelector(state => state.mrp.activeTab);
-  const localMaterials = useSelector(state => state.mrp.materials);
-  const chainAssets = useSelector(state => state.mrp.chainAssets || []);
-  const componentLibrary = useSelector(state => state.mrp.componentLibrary || []);
-  const inventory = useSelector(state => state.mrp.inventory);
-  const bom = useSelector(state => state.mrp.bom);
-  const pallets = useSelector(state => state.mrp.pallets || []);
-  const invoices = useSelector(state => state.mrp.invoices || []);
+  const activeTabRaw = useSelector((state) => state.mrp.activeTab);
+  const tabs = SHOW_LEGACY_MANUFACTURING
+    ? [...STORE_TABS, ...LEGACY_TABS]
+    : STORE_TABS;
+  const validKeys = new Set(tabs.map((t) => t.key));
+  // Legacy state may have persisted an older tab key like 'search' — fall back.
+  const activeTab = validKeys.has(activeTabRaw) ? activeTabRaw : DEFAULT_TAB;
 
-  // Resolve materials — library addresses resolved from chain, plus local fallback
+  const localMaterials = useSelector((state) => state.mrp.materials);
+  const chainAssets = useSelector((state) => state.mrp.chainAssets || []);
+  const componentLibrary = useSelector((state) => state.mrp.componentLibrary || []);
+  const vendors = useSelector((state) => state.mrp.vendors || []);
+  const stockBalances = useSelector((state) => state.mrp.stockBalances || {});
+  const sales = useSelector((state) => state.mrp.sales || []);
+
   const materials = getAllMaterials(chainAssets, localMaterials, componentLibrary);
 
-  const [inventoryForm, setInventoryForm] = useState({
-    materialId: '',
-    quantity: '',
-    type: 'receipt',
-    reference: '',
-  });
+  const totalProducts = materials.length;
+  const totalStockValue = Object.values(stockBalances).reduce(
+    (t, b) => t + (Number(b.quantity) || 0) * (Number(b.unitPrice) || 0),
+    0
+  );
+  const lowStockItems = Object.values(stockBalances).filter(
+    (b) => Number(b.quantity) > 0 && Number(b.quantity) < 10
+  ).length;
+  const stockCurrency =
+    Object.values(stockBalances).find((b) => b.currency)?.currency || 'USD';
 
-  const [bomForm, setBomForm] = useState({
-    parentMaterialId: '',
-    childMaterialId: '',
-    quantity: '',
-  });
-
-  const handleTabChange = (tabName) => {
-    dispatch(setActiveTab(tabName));
-  };
-
-  const handleAddInventoryTransaction = () => {
-    if (!inventoryForm.materialId || !inventoryForm.quantity) {
-      showErrorDialog({ message: 'Material and quantity are required' });
-      return;
-    }
-
-    const materialReference = inventoryForm.materialId;
-    const material = getMaterialFromReference(materialReference, chainAssets, localMaterials);
-
-    const transaction = {
-      id: Date.now().toString(),
-      materialId: materialReference,
-      assetAddress: material?.address || null,
-      quantity: inventoryForm.type === 'issue'
-        ? -Math.abs(parseFloat(inventoryForm.quantity))
-        : Math.abs(parseFloat(inventoryForm.quantity)),
-      type: inventoryForm.type,
-      reference: inventoryForm.reference,
-      timestamp: new Date().toISOString(),
-    };
-
-    dispatch(addInventoryTransaction({
-      materialId: materialReference,
-      assetAddress: material?.address || null,
-      transaction
-    }));
-    setInventoryForm({ materialId: '', quantity: '', type: 'receipt', reference: '' });
-    showSuccessDialog({ message: 'Inventory transaction recorded' });
-  };
-
-  const handleAddBomItem = () => {
-    if (!bomForm.parentMaterialId || !bomForm.childMaterialId || !bomForm.quantity) {
-      showErrorDialog({ message: 'All BOM fields are required' });
-      return;
-    }
-
-    const parentMaterial = getMaterialFromReference(bomForm.parentMaterialId, chainAssets, localMaterials);
-    const childMaterial = getMaterialFromReference(bomForm.childMaterialId, chainAssets, localMaterials);
-
-    const bomItem = {
-      id: Date.now().toString(),
-      childMaterialId: bomForm.childMaterialId,
-      childAssetAddress: childMaterial?.address || null,
-      quantity: parseFloat(bomForm.quantity),
-    };
-
-    dispatch(addBomItem({
-      parentMaterialId: bomForm.parentMaterialId,
-      parentAssetAddress: parentMaterial?.address || null,
-      bomItem
-    }));
-    setBomForm({ parentMaterialId: '', childMaterialId: '', quantity: '' });
-    showSuccessDialog({ message: 'BOM item added successfully' });
-  };
-
-  const getMaterialName = (materialReference) => {
-    const material = getMaterialFromReference(materialReference, chainAssets, localMaterials);
-    return material ? getMaterialDisplayName(material) : 'Unknown Material';
-  };
-
-  const getTotalMaterials = () => materials.length;
-  const getTotalInventoryValue = () => {
-    return materials.reduce((total, material) => {
-      const materialKey = material.address || material.id;
-      const inv = inventory[materialKey];
-      return total + (inv ? inv.onHand * material.cost : 0);
-    }, 0);
-  };
-  const getLowStockItems = () => {
-    return materials.filter(material => {
-      const materialKey = material.address || material.id;
-      const inv = inventory[materialKey];
-      return inv && inv.onHand < 10;
-    }).length;
-  };
+  const today = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  })();
+  const todayRevenue = sales.reduce((t, s) => {
+    return new Date(s.timestamp).getTime() >= today
+      ? t + (Number(s.total) || 0)
+      : t;
+  }, 0);
 
   return (
-    <Panel title="MRP - Material Resource Planning" icon={{ url: 'dist/icons/inventory.svg', id: 'mrp-icon' }}>
+    <Panel
+      title="MRP — Local Vendor Store"
+      icon={{ url: 'dist/icons/inventory.svg', id: 'mrp-icon' }}
+    >
       <div style={{ textAlign: 'center', marginBottom: '20px' }}>
         <p>
-          Small business MRP system. Search Distordia Standards for components, manage
-          warehouse pallets, build BOMs, generate picking lists, and issue invoices — all
-          with on-chain asset tracking.
+          Register local-vendor products on Nexus (Distordia master data, asset
+          address = product ID), track stock on-chain, and report on income.
         </p>
       </div>
 
       <StatsContainer>
         <StatCard>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{getTotalMaterials()}</div>
-          <div>Materials</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
+            {totalProducts}
+          </div>
+          <div>Products</div>
         </StatCard>
         <StatCard>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-            ${getTotalInventoryValue().toFixed(2)}
+            {vendors.length}
           </div>
-          <div>Inventory Value</div>
+          <div>Vendors</div>
         </StatCard>
         <StatCard>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{pallets.length}</div>
-          <div>Pallets</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
+            {totalStockValue.toFixed(2)} {stockCurrency}
+          </div>
+          <div>Stock value</div>
         </StatCard>
         <StatCard>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{invoices.length}</div>
-          <div>Invoices</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
+            {lowStockItems}
+          </div>
+          <div>Low stock</div>
         </StatCard>
         <StatCard>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{getLowStockItems()}</div>
-          <div>Low Stock</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
+            {todayRevenue.toFixed(2)} {stockCurrency}
+          </div>
+          <div>Today's revenue</div>
         </StatCard>
       </StatsContainer>
 
       <TabContainer>
-        <TabButton active={activeTab === 'search'} onClick={() => handleTabChange('search')}>
-          Component Search
-        </TabButton>
-        <TabButton active={activeTab === 'warehouse'} onClick={() => handleTabChange('warehouse')}>
-          Warehouse
-        </TabButton>
-        <TabButton active={activeTab === 'inventory'} onClick={() => handleTabChange('inventory')}>
-          Inventory
-        </TabButton>
-        <TabButton active={activeTab === 'bom'} onClick={() => handleTabChange('bom')}>
-          BOM
-        </TabButton>
-        <TabButton active={activeTab === 'picking'} onClick={() => handleTabChange('picking')}>
-          Picking
-        </TabButton>
-        <TabButton active={activeTab === 'invoicing'} onClick={() => handleTabChange('invoicing')}>
-          Invoicing
-        </TabButton>
-        <TabButton active={activeTab === 'planning'} onClick={() => handleTabChange('planning')}>
-          Planning
-        </TabButton>
+        {tabs.map((t) => (
+          <TabButton
+            key={t.key}
+            active={activeTab === t.key}
+            onClick={() => dispatch(setActiveTab(t.key))}
+          >
+            {t.label}
+          </TabButton>
+        ))}
       </TabContainer>
 
-      {activeTab === 'inventory' && (
-        <div>
-          <h3>Record Inventory Transaction</h3>
-          <FormContainer>
-            <select
-              value={inventoryForm.materialId}
-              onChange={(e) => setInventoryForm({...inventoryForm, materialId: e.target.value})}
-              style={{ padding: '8px' }}
-            >
-              <option value="">Select Material</option>
-              {materials.map(material => {
-                const materialKey = material.address || material.id;
-                return (
-                  <option key={materialKey} value={materialKey}>
-                    {getMaterialDisplayName(material)}
-                  </option>
-                );
-              })}
-            </select>
-            <TextField
-              label="Quantity"
-              type="number"
-              value={inventoryForm.quantity}
-              onChange={(e) => setInventoryForm({...inventoryForm, quantity: e.target.value})}
-              placeholder="Enter quantity"
-            />
-            <select
-              value={inventoryForm.type}
-              onChange={(e) => setInventoryForm({...inventoryForm, type: e.target.value})}
-              style={{ padding: '8px' }}
-            >
-              <option value="receipt">Receipt</option>
-              <option value="issue">Issue</option>
-              <option value="adjustment">Adjustment</option>
-            </select>
-            <TextField
-              label="Reference"
-              value={inventoryForm.reference}
-              onChange={(e) => setInventoryForm({...inventoryForm, reference: e.target.value})}
-              placeholder="PO#, WO#, etc."
-            />
-            <Button onClick={handleAddInventoryTransaction}>Record Transaction</Button>
-          </FormContainer>
+      {activeTab === 'products' && <ComponentSearch />}
+      {activeTab === 'vendors' && <Vendors />}
+      {activeTab === 'purchasing' && <Purchasing />}
+      {activeTab === 'stock' && <Stock />}
+      {activeTab === 'checkout' && <Checkout />}
+      {activeTab === 'income' && <IncomeReport />}
 
-          <h3>Current Inventory</h3>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHeaderCell>Material</TableHeaderCell>
-                <TableHeaderCell>On Hand</TableHeaderCell>
-                <TableHeaderCell>Reserved</TableHeaderCell>
-                <TableHeaderCell>Available</TableHeaderCell>
-                <TableHeaderCell>Value</TableHeaderCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {materials.map(material => {
-                const materialKey = material.address || material.id;
-                const inv = inventory[materialKey];
-                const onHand = inv ? inv.onHand : 0;
-                const reserved = inv ? inv.reserved : 0;
-                const available = inv ? inv.available : 0;
-                const value = onHand * material.cost;
-
-                return (
-                  <TableRow key={materialKey}>
-                    <TableCell>{getMaterialDisplayName(material)}</TableCell>
-                    <TableCell>{onHand} {material.unit}</TableCell>
-                    <TableCell>{reserved} {material.unit}</TableCell>
-                    <TableCell>{available} {material.unit}</TableCell>
-                    <TableCell>${value.toFixed(2)}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+      {SHOW_LEGACY_MANUFACTURING && (
+        <>
+          {activeTab === 'warehouse' && <WarehouseInventory />}
+          {activeTab === 'picking' && <PickingBOM />}
+          {activeTab === 'invoicing' && <Invoicing />}
+          {activeTab === 'planning' && <ProductionPlanning />}
+          {activeTab === 'bom' && (
+            <div style={{ padding: 20 }}>
+              BOM module is hidden in store mode. Toggle{' '}
+              <code>SHOW_LEGACY_MANUFACTURING</code> in{' '}
+              <code>MRPInterface.js</code> to re-enable.
+            </div>
+          )}
+        </>
       )}
-
-      {activeTab === 'bom' && (
-        <div>
-          <h3>Add BOM Component</h3>
-          <FormContainer>
-            <select
-              value={bomForm.parentMaterialId}
-              onChange={(e) => setBomForm({...bomForm, parentMaterialId: e.target.value})}
-              style={{ padding: '8px' }}
-            >
-              <option value="">Select Parent Material</option>
-              {materials.filter(m => m.type !== 'raw').map(material => {
-                const materialKey = material.address || material.id;
-                return (
-                  <option key={materialKey} value={materialKey}>
-                    {getMaterialDisplayName(material)}
-                  </option>
-                );
-              })}
-            </select>
-            <select
-              value={bomForm.childMaterialId}
-              onChange={(e) => setBomForm({...bomForm, childMaterialId: e.target.value})}
-              style={{ padding: '8px' }}
-            >
-              <option value="">Select Component</option>
-              {materials.map(material => {
-                const materialKey = material.address || material.id;
-                return (
-                  <option key={materialKey} value={materialKey}>
-                    {getMaterialDisplayName(material)}
-                  </option>
-                );
-              })}
-            </select>
-            <TextField
-              label="Quantity Required"
-              type="number"
-              value={bomForm.quantity}
-              onChange={(e) => setBomForm({...bomForm, quantity: e.target.value})}
-              placeholder="Quantity per unit"
-            />
-            <Button onClick={handleAddBomItem}>Add to BOM</Button>
-          </FormContainer>
-
-          <h3>Bill of Materials</h3>
-          {materials.filter(material => {
-            const materialKey = material.address || material.id;
-            return bom[materialKey] && bom[materialKey].length > 0;
-          }).map(material => {
-            const materialKey = material.address || material.id;
-            return (
-              <div key={materialKey} style={{ marginBottom: '20px' }}>
-                <h4>{getMaterialDisplayName(material)} - Components:</h4>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHeaderCell>Component</TableHeaderCell>
-                      <TableHeaderCell>Quantity Required</TableHeaderCell>
-                      <TableHeaderCell>Actions</TableHeaderCell>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(bom[materialKey] || []).map(bomItem => (
-                      <TableRow key={bomItem.id}>
-                        <TableCell>{getMaterialName(bomItem.childMaterialId || bomItem.childAssetAddress)}</TableCell>
-                        <TableCell>{bomItem.quantity}</TableCell>
-                        <TableCell>
-                          <Button
-                            size="small"
-                            skin="danger"
-                            onClick={() => dispatch(removeBomItem(materialKey, bomItem.id))}
-                          >
-                            Remove
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {activeTab === 'search' && <ComponentSearch />}
-
-      {activeTab === 'warehouse' && <WarehouseInventory />}
-
-      {activeTab === 'picking' && <PickingBOM />}
-
-      {activeTab === 'invoicing' && <Invoicing />}
-
-      {activeTab === 'planning' && <ProductionPlanning />}
     </Panel>
   );
 }

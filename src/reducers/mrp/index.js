@@ -7,6 +7,10 @@ import activeTab from './activeTab';
 import componentLibrary from './componentLibrary';
 import pallets from './pallets';
 import invoices from './invoices';
+import vendors from './vendors';
+import stockBalances from './stockBalances';
+import purchases from './purchases';
+import sales from './sales';
 
 export default combineReducers({
   chainAssets,
@@ -17,4 +21,8 @@ export default combineReducers({
   componentLibrary,
   pallets,
   invoices,
+  vendors,
+  stockBalances,
+  purchases,
+  sales,
 });

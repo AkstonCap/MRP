@@ -1,86 +1,91 @@
-# MRP Module
+# MRP Module — Local Vendor Store
 
-A Nexus Wallet Module for small-business Material Resource Planning (MRP). Built with React and Redux, it uses the **Distordia_Standards** on-chain masterdata as the single source of truth for component/material information — the **Layer 0** foundation for supply chains.
+A Nexus Wallet Module tailored for a small retail store that continuously
+buys products from local vendors, registers them on Nexus in the Distordia
+master data (asset address = product ID), tracks stock on-chain, and reports
+on income. Invoicing and payment are intentionally out of scope.
 
-## Architecture — Distordia Masterdata as Layer 0
+Built with React + Redux on top of **Distordia_Standards** as the Layer 0
+master data on the Nexus blockchain.
+
+## Architecture — Distordia master data as Layer 0
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                  Nexus Blockchain                         │
 │  ┌────────────────────────────────────────────────────┐  │
-│  │  Distordia Masterdata (Layer 0)                    │  │
-│  │  material_master_data assets — the global catalog  │  │
-│  │  Each asset has a unique address (art.nr)          │  │
+│  │  Distordia master data (Layer 0)                   │  │
+│  │    material_master_data   — products (address=ID)  │  │
+│  │    vendor_master_data     — vendors  (address=ID)  │  │
+│  │    stock_balance          — per-product balance    │  │
+│  │                             + modifiable price      │  │
 │  └────────────────────────────────────────────────────┘  │
-│  ┌────────────┐ ┌──────────────┐ ┌──────────────────┐   │
-│  │  Pallet    │ │  Invoice     │ │  Picking List    │   │
-│  │  Assets    │ │  Assets      │ │  Assets          │   │
-│  └────────────┘ └──────────────┘ └──────────────────┘   │
 └──────────────────────────────────────────────────────────┘
-        ▲ resolve by address              ▲ publish
-        │                                 │
+        ▲ resolve by address                ▲ publish
+        │                                   │
 ┌──────────────────────────────────────────────────────────┐
-│                    MRP Module                             │
-│                                                          │
-│  Component Library ─── [ address, address, … ]           │
-│        │  (address-only references, no data duplication)  │
-│        ▼                                                 │
-│  Warehouse ─── Pallets reference materialId (address)    │
-│  Inventory ─── Transactions keyed by address             │
-│  BOM       ─── Parent/child linked by address            │
-│  Picking   ─── Allocates pallet → BOM line by address    │
-│  Invoicing ─── Line items reference address              │
+│                    MRP Store Module                       │
+│  Products    — address-only references to master data     │
+│  Vendors     — address-only references to vendor master   │
+│  Purchasing  — buy from vendor → increment stock          │
+│  Stock       — balance + modifiable price per product     │
+│  Check-out   — "scan" + qty → decrement stock, record sale│
+│  Income      — aggregated sales report                    │
 └──────────────────────────────────────────────────────────┘
 ```
 
-**Key principle:** The internal component library stores **only the Distordia asset address** (the reference number / art.nr). All descriptive information — name, unit, cost, type, status — is resolved at query time from the blockchain. This means:
+**Key principle:** the module stores **only asset addresses**. All
+product, vendor, and stock details are resolved at query time from the
+chain — zero duplication. Every purchase, stock change, and sale ties
+back to the same canonical Distordia addresses.
 
-- Zero data duplication between your MRP and the global masterdata
-- Any update to the masterdata is immediately visible
-- Every downstream process (warehouse, picking, invoicing) traces back to the same canonical reference
+## Store workflows
 
-## Features
+### 1. Register a vendor
+*Vendors tab* → fill in the form → **Publish vendor on-chain**. A
+`vendor_master_data` asset is created; its address is the vendor's
+permanent unique ID and is added to your vendor list.
 
-### Component Search & Library
-- Search the on-chain Distordia masterdata by name, type, and lifecycle status
-- Add components to your internal library (stores address reference only)
-- Library entries are resolved live from the chain — always up to date
+### 2. Buy from a vendor (new product)
+*Purchasing tab* → mode: **New product from vendor** → pick the vendor,
+enter the new product's name/unit/barcode, quantity, unit cost, and an
+optional initial sale price.
 
-### Warehouse Pallet Inventory
-- Receive, adjust, move, and track physical pallets
-- Each pallet references a Distordia masterdata address — no material data stored locally
-- Publish pallet assets on-chain for supply chain visibility
+On submit:
+1. A `material_master_data` asset is published on-chain (address becomes
+   the product's permanent ID, with a reference to the vendor address).
+2. The product is added to your product list.
+3. A purchase record is logged and the product's stock balance is
+   incremented.
+4. If an initial sale price was provided, it is set on the stock balance.
 
-### Bill of Materials (BOM)
-- Define component relationships for manufactured items
-- Multi-level BOM support for complex assemblies
-- All references use Distordia asset addresses
+### 3. Buy from a vendor (existing product)
+*Purchasing tab* → mode: **Existing product** → pick vendor + product,
+enter qty and unit cost. Stock is incremented; a purchase record is
+logged.
 
-### Picking BOM
-- Generate picking lists from a product's BOM and an order quantity
-- Greedy pallet allocation — system assigns specific pallets per component
-- Confirm pick to automatically deduct inventory from pallets
-- Publish picking lists on-chain
+### 4. Manage stock & price
+*Stock tab* — one row per product, keyed by product address. You can:
+- Edit the unit sale price inline (source of truth for check-out).
+- Manually adjust on-hand (shrinkage, correction, etc.) with a reason.
+- **Publish** a `stock_balance` asset on-chain for audit.
 
-### Invoicing
-- Create multi-line invoices with tax calculation
-- Issuing an invoice automatically deducts sold quantities from inventory
-- Mark invoices as paid
-- Publish invoices on-chain for auditable proof of transaction
+### 5. Check out a customer
+*Check-out tab* → "scan" (for now: type/paste) a product address,
+barcode, or exact name + qty → **Add to cart**. Price is pulled from the
+product's stock balance and can be overridden per line. **Complete
+check-out** decrements stock for every line, snapshots the sale for the
+income report, and updates the stock-balance price if edited.
 
-### Production Planning (MRP Calculation)
-- Calculate material requirements from BOM and planned production
-- Shortfall analysis against current inventory
-- Procurement recommendations
+### 6. Report on income
+*Income tab* — revenue, units sold, receipts, and an indicative gross
+profit (revenue minus last-known unit cost from purchase records), with a
+per-product breakdown. Presets for today / 7 / 30 days / YTD or a custom
+date range.
 
-### On-Chain Asset Management
-- Publish material specifications as blockchain assets with standardized `distordia` status
-- Query and filter blockchain assets by lifecycle status
-- Distordia Status System: 1=Active, 2=Sold Out, 3=Planned, 4=Discontinued, 5=Pending Approval
+## Distordia_Standards asset formats used by the store
 
-## Distordia_Standards Asset Formats
-
-All on-chain assets follow the Distordia_Standards specification. They share a common envelope:
+All assets share the common envelope:
 
 ```json
 {
@@ -94,70 +99,80 @@ All on-chain assets follow the Distordia_Standards specification. They share a c
 }
 ```
 
-### material_master_data (Layer 0)
-The global component catalog. Every other asset type references materials by their `material_master_data` asset address.
+### `material_master_data` — product catalog (Layer 0)
 
-| Field          | Type   | Description                        |
-|----------------|--------|------------------------------------|
-| distordia      | number | Lifecycle status (1-5)             |
-| assetType      | string | `"material_master_data"`           |
-| materialId     | string | Internal identifier                |
-| materialName   | string | Human-readable name                |
-| description    | string | Detailed description               |
-| unit           | string | Unit of measure (kg, pcs, m, etc.) |
-| materialType   | string | `raw` / `semi` / `finished`        |
-| baseCost       | number | Cost per unit                      |
-| currency       | string | Currency code                      |
+| Field           | Type   | Description                            |
+|-----------------|--------|----------------------------------------|
+| distordia       | number | Lifecycle status (1-5)                 |
+| assetType       | string | `"material_master_data"`               |
+| materialId      | string | Internal identifier                    |
+| materialName    | string | Product name                           |
+| description     | string | Details                                |
+| unit            | string | Unit of measure (pcs, kg, L, …)        |
+| materialType    | string | `raw` / `semi` / `finished`            |
+| baseCost        | number | Last known purchase cost per unit      |
+| currency        | string | Currency code                          |
+| vendorAddress   | string | Distordia `vendor_master_data` address |
+| vendorName      | string | Vendor name (snapshot)                 |
+| barcode         | string | Optional barcode for check-out lookup  |
 
-### warehouse_pallet
-Tracks a physical warehouse pallet. References `material_master_data` by address.
+### `vendor_master_data` — vendor catalog (Layer 0)
 
-| Field          | Type   | Description                           |
-|----------------|--------|---------------------------------------|
-| distordia      | number | Lifecycle status (1-5)                |
-| assetType      | string | `"warehouse_pallet"`                  |
-| palletId       | string | Unique pallet identifier              |
-| materialId     | string | **Distordia masterdata asset address** |
-| quantity       | number | Units on pallet                       |
-| unit           | string | Unit of measure                       |
-| location       | string | Warehouse location code               |
-| palletStatus   | string | available/reserved/picked/shipped/empty |
+| Field       | Type   | Description                    |
+|-------------|--------|--------------------------------|
+| distordia   | number | Lifecycle status (1-5)         |
+| assetType   | string | `"vendor_master_data"`         |
+| vendorId    | string | Internal identifier            |
+| vendorName  | string | Vendor name                    |
+| contact     | string | Contact person                 |
+| email       | string |                                |
+| phone       | string |                                |
+| location    | string | City / address                 |
+| notes       | string |                                |
 
-### sales_invoice
-An issued invoice. Line items reference materials by Distordia address.
+### `stock_balance` — per-product balance + price
 
-| Field          | Type   | Description                           |
-|----------------|--------|---------------------------------------|
-| distordia      | number | Lifecycle status (1-5)                |
-| assetType      | string | `"sales_invoice"`                     |
-| invoiceNumber  | string | Human-readable invoice number         |
-| customer       | string | Customer name                         |
-| items          | array  | Line items (materialId = address)     |
-| subtotal       | number | Pre-tax total                         |
-| tax            | number | Tax amount                            |
-| total          | number | Grand total                           |
-| status         | string | draft/issued/paid/cancelled           |
+One asset per product, referenced by `productAddress`.
 
-### picking_list
-A BOM-based picking list for production or shipping.
+| Field           | Type   | Description                              |
+|-----------------|--------|------------------------------------------|
+| distordia       | number | Lifecycle status (1-5)                   |
+| assetType       | string | `"stock_balance"`                        |
+| productAddress  | string | `material_master_data` asset address     |
+| productName     | string | Snapshot for display                     |
+| quantity        | number | Units on hand                            |
+| unit            | string | Unit of measure                          |
+| unitPrice       | number | **Modifiable** sale price per unit       |
+| currency        | string | Currency code                            |
+| location        | string | Physical location (optional)             |
+| lastMovementAt  | string | ISO timestamp of last movement           |
 
-| Field          | Type   | Description                           |
-|----------------|--------|---------------------------------------|
-| distordia      | number | Lifecycle status (1-5)                |
-| assetType      | string | `"picking_list"`                      |
-| productId      | string | Product asset address                 |
-| orderQuantity  | number | Units to produce                      |
-| lines          | array  | Components with pallet allocations    |
-| status         | string | open/picked                           |
+## Legacy manufacturing modules
 
-## How to test this module
+The repo still contains the original manufacturing features (BOM,
+warehouse pallets, picking lists, invoicing, production planning). They
+are hidden in store mode. Flip `SHOW_LEGACY_MANUFACTURING` in
+`src/components/MRPInterface.js` to re-enable their tabs.
 
 Additional architecture docs:
 
 - `docs/chain-assets-architecture.md`
 - `docs/state-machines.md`
+- `docs/store-mode.md`
 
-1. Download and install the [latest version of Nexus Wallet](https://github.com/Nexusoft/NexusInterface/releases/latest) if you haven't.
-2. Download [this template module's zip file](https://github.com/AkstonCap/MRP/releases/latest).
-3. Open Nexus Wallet, go to Settings/Modules, drag and drop the zip file you've downloaded into the "Add module" section and click "Install module" when prompted.
-4. After the wallet refreshes, an item for this template module will be added into the bottom navigation bar. Click on it to open the module.
+## How to run the module
+
+1. Install the [latest Nexus Wallet](https://github.com/Nexusoft/NexusInterface/releases/latest).
+2. Download the latest [MRP release zip](https://github.com/AkstonCap/MRP/releases/latest)
+   (or build locally with `npm run build` and zip `dist/` + `nxs_package.json`).
+3. In Nexus Wallet open *Settings → Modules*, drag the zip into **Add
+   module**, click **Install module**.
+4. Open the module from the bottom nav bar.
+
+## Development
+
+```
+npm install
+npm run dev        # webpack dev server
+npm run build      # production bundle in dist/
+```
