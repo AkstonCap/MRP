@@ -35,3 +35,22 @@ export const UPDATE_INVOICE = 'UPDATE_INVOICE';
 export const SET_INVOICES = 'SET_INVOICES';
 
 export const SET_ACTIVE_TAB = 'SET_ACTIVE_TAB';
+
+// Vendor Library Actions (address-only, mirrors component library)
+export const ADD_VENDOR = 'ADD_VENDOR';
+export const REMOVE_VENDOR = 'REMOVE_VENDOR';
+export const SET_VENDORS = 'SET_VENDORS';
+
+// Stock Balance Actions (per-product balance + unit price)
+export const SET_STOCK_BALANCE = 'SET_STOCK_BALANCE';
+export const ADJUST_STOCK_BALANCE = 'ADJUST_STOCK_BALANCE';
+export const SET_STOCK_PRICE = 'SET_STOCK_PRICE';
+export const SET_STOCK_BALANCES = 'SET_STOCK_BALANCES';
+
+// Purchase Actions (buy from vendor → increments stock)
+export const RECORD_PURCHASE = 'RECORD_PURCHASE';
+export const SET_PURCHASES = 'SET_PURCHASES';
+
+// Sale Actions (check-out → decrements stock, feeds income report)
+export const RECORD_SALE = 'RECORD_SALE';
+export const SET_SALES = 'SET_SALES';

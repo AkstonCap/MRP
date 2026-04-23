@@ -1,6 +1,6 @@
 import * as TYPE from 'actions/types';
 
-const initialState = 'search';
+const initialState = 'products';
 
 export default function activeTab(state = initialState, action) {
   switch (action.type) {

@@ -17,7 +17,7 @@ export const DISTORDIA_STATUS_LABELS = {
 
 export const parseMaterialAsset = (asset) => {
   try {
-    const data = JSON.parse(asset.data);
+    const data = typeof asset.data === 'string' ? JSON.parse(asset.data) : asset.data;
     return {
       ...asset,
       parsedData: data,

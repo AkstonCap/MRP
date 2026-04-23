@@ -127,3 +127,44 @@ export const getMaterialDisplayName = (material) => {
   return `${sourceIcon} ${material.name}`;
 };
 
+// ─── Vendor resolution (vendor_master_data assets) ───────────────────────────
+
+const resolveVendorAsset = (address, chainAssets) => {
+  const asset = chainAssets.find((a) => a.address === address);
+  if (!asset || !asset.parsedData) return null;
+  if (asset.parsedData.assetType !== 'vendor_master_data') return null;
+  const d = asset.parsedData;
+  return {
+    id: asset.address,
+    address: asset.address,
+    name: d.vendorName,
+    description: d.description,
+    contact: d.contact,
+    email: d.email,
+    phone: d.phone,
+    location: d.location,
+    notes: d.notes,
+    distordiaStatus: d.distordia,
+    statusLabel: DISTORDIA_STATUS_LABELS[d.distordia] || 'Unknown',
+    source: 'chain',
+  };
+};
+
+export const getVendorFromReference = (address, chainAssets) =>
+  address ? resolveVendorAsset(address, chainAssets) : null;
+
+export const resolveVendorLibrary = (vendorLibrary, chainAssets) =>
+  vendorLibrary
+    .map((entry) => resolveVendorAsset(entry.address, chainAssets))
+    .filter(Boolean);
+
+export const getAllVendors = (chainAssets, vendorLibrary) => {
+  if (vendorLibrary && vendorLibrary.length > 0) {
+    return resolveVendorLibrary(vendorLibrary, chainAssets);
+  }
+  return chainAssets
+    .filter((a) => a.parsedData && a.parsedData.assetType === 'vendor_master_data')
+    .map((a) => resolveVendorAsset(a.address, chainAssets))
+    .filter(Boolean);
+};
+

@@ -165,11 +165,13 @@ export default function ComponentSearch() {
 
   return (
     <SearchContainer>
-      <h3>Search Distordia Standards Components</h3>
+      <h3>Products — Distordia master data</h3>
       <p>
-        Search the on-chain Distordia masterdata for components.  Adding a
-        component stores only its <strong>asset address</strong> as reference —
-        all details are resolved live from the chain (no data duplication).
+        Search the on-chain Distordia master data for existing products. Adding
+        a product stores only its <strong>asset address</strong> as reference —
+        all details are resolved live from the chain (no duplication). To
+        register a <em>new</em> product from a local vendor, use the
+        Purchasing tab.
       </p>
 
       <SearchBar>
@@ -288,11 +290,11 @@ export default function ComponentSearch() {
         </div>
       )}
 
-      {/* ─── Internal Component Library (address-only references) ──────────── */}
-      <SectionTitle>Your Component Library ({componentLibrary.length})</SectionTitle>
+      {/* ─── Internal Product Library (address-only references) ──────────── */}
+      <SectionTitle>Your product list ({componentLibrary.length})</SectionTitle>
       <p style={{ fontSize: '13px', color: '#666', marginBottom: '10px' }}>
-        Each entry is a reference to a Distordia masterdata asset address.
-        Details below are resolved live from the Nexus blockchain.
+        Each entry is a reference to a Distordia <code>material_master_data</code>{' '}
+        asset address. Details are resolved live from the Nexus blockchain.
       </p>
 
       {resolvedLibrary.length > 0 ? (
